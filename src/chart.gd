@@ -1,9 +1,10 @@
 extends Control
 
 enum LABELS_TO_SHOW {
-  NO_LABEL,
-  X_LABEL,
-  Y_LABEL
+  NO_LABEL = 0,
+  X_LABEL = 1,
+  Y_LABEL = 2,
+  LEGEND_LABEL = 4
 }
 
 const number_utils = preload('res://src/number.gd')
@@ -26,8 +27,11 @@ var current_show_label = LABELS_TO_SHOW.NO_LABEL
 onready var tween_node = get_node('tween')
 onready var texture_size = dot_texture.get_size()
 onready var min_x = 0.0
-onready var max_y = get_size().y
 onready var max_x = get_size().x
+
+onready var min_y = 0.0
+onready var max_y = get_size().y
+
 onready var current_data_size = MAX_VALUES
 onready var global_scale = Vector2(1.0, 1.0) / sqrt(MAX_VALUES)
 onready var interline_color = Color(grid_color.r, grid_color.g, grid_color.b, grid_color.a * 0.5)
@@ -53,6 +57,7 @@ func set_labels(show_label):
   current_show_label = show_label
 
   # Reset values
+  min_y = 0.0
   min_x = 0.0
   max_y = get_size().y
   max_x = get_size().x
@@ -64,13 +69,17 @@ func set_labels(show_label):
     min_x += LABEL_SPACE.x
     max_x -= min_x
 
+  if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
+    min_y += LABEL_SPACE.y
+    max_y -= min_y
+
   current_data_size -= 1
   move_other_sprites()
   current_data_size = current_data.size()
 
 func _draw():
-  var vertical_line = [Vector2(min_x, 0.0), Vector2(min_x, max_y)]
-  var horizontal_line = [vertical_line[1], Vector2(min_x + max_x, max_y)]
+  var vertical_line = [Vector2(min_x, min_y), Vector2(min_x, min_y + max_y)]
+  var horizontal_line = [vertical_line[1], Vector2(min_x + max_x, min_y + max_y)]
   var previous_point = {}
 
   for point_data in current_data:
@@ -101,8 +110,23 @@ func _draw():
 
     for ordinate_value in ordinate_values:
       var label = number_utils.format(ordinate_value)
-      var position = Vector2(max(0, 6.0 -label.length()) * 9.5, max_y - compute_y(ordinate_value))
+      var position = Vector2(max(0, 6.0 -label.length()) * 9.5, min_y + max_y - compute_y(ordinate_value))
       draw_string(label_font, position, label, grid_color)
+
+  if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL and current_data.size() > 0:
+    var point_data = current_data[0]
+    var nb_labels = point_data.sprites.size()
+    var position = Vector2(min_x + LABEL_SPACE.x * 0.5, 0.0)
+
+    for legend_label in point_data.sprites:
+      var dot_color = current_point_color[legend_label].dot
+      var rect = Rect2(position, LABEL_SPACE / 1.5)
+      var label_position = position + LABEL_SPACE * Vector2(1.0, 0.4)
+
+      draw_string(label_font, label_position, legend_label, grid_color)
+      draw_rect(rect, dot_color)
+
+      position.x += 1.0 * max_x / nb_labels
 
   draw_line(vertical_line[0], vertical_line[1], grid_color, 1.0)
   draw_line(horizontal_line[0], horizontal_line[1], grid_color, 1.0)
@@ -206,7 +230,7 @@ func _move_other_sprites(points_data, index):
     var sprite = point_data.sprite
     var value = point_data.value
 
-    var y = max_y - compute_y(value)
+    var y = min_y + max_y - compute_y(value)
     var x = min_x + (max_x / current_data_size) * index
 
     animation_move_dot(sprite, Vector2(x, y) - texture_size * global_scale / 2.0, global_scale, delay)

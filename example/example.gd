@@ -6,14 +6,16 @@ func _ready():
   chart_node.initialize(chart_node.LABELS_TO_SHOW.NO_LABEL,
   {
     depenses = Color(1.0, 0.18, 0.18),
-    recettes = Color(0.58, 0.92, 0.07)
+    recettes = Color(0.58, 0.92, 0.07),
+    interet = Color(0.5, 0.22, 0.6)
   })
 
   chart_node.create_new_point({
     label = 'JANVIER',
     values = {
       depenses = 150,
-      recettes = 1025
+      recettes = 1025,
+      interet = 1050
     }
   })
 
@@ -21,7 +23,8 @@ func _ready():
     label = 'FEVRIER',
     values = {
       depenses = 500,
-      recettes = 1020
+      recettes = 1020,
+      interet = 150
     }
   })
 
@@ -29,7 +32,8 @@ func _ready():
     label = 'MARS',
     values = {
       depenses = 10,
-      recettes = 1575
+      recettes = 1575,
+      interet = 450
     }
   })
 
@@ -37,7 +41,8 @@ func _ready():
     label = 'AVRIL',
     values = {
       depenses = 350,
-      recettes = 750
+      recettes = 750,
+      interet = 509
     }
   })
 
@@ -45,7 +50,8 @@ func _ready():
     label = 'MAI',
     values = {
       depenses = 1350,
-      recettes = 750
+      recettes = 750,
+      interet = 505
     }
   })
 
@@ -53,7 +59,8 @@ func _ready():
     label = 'JUIN',
     values = {
       depenses = 350,
-      recettes = 1750
+      recettes = 1750,
+      interet = 950
     }
   })
 
@@ -61,7 +68,8 @@ func _ready():
     label = 'JUILLET',
     values = {
       depenses = 100,
-      recettes = 1500
+      recettes = 1500,
+      interet = 350
     }
   })
 
@@ -69,7 +77,8 @@ func _ready():
     label = 'AOUT',
     values = {
       depenses = 350,
-      recettes = 750
+      recettes = 750,
+      interet = 500
     }
   })
 
@@ -77,7 +86,8 @@ func _ready():
     label = 'SEPTEMBRE',
     values = {
       depenses = 1350,
-      recettes = 750
+      recettes = 750,
+      interet = 50
     }
   })
 
@@ -85,7 +95,8 @@ func _ready():
     label = 'OCTOBRE',
     values = {
       depenses = 350,
-      recettes = 1750
+      recettes = 1750,
+      interet = 750
     }
   })
 
@@ -93,7 +104,8 @@ func _ready():
     label = 'NOVEMBRE',
     values = {
       depenses = 450,
-      recettes = 200
+      recettes = 200,
+      interet = 150
     }
   })
 
@@ -101,6 +113,7 @@ func _ready():
     label = 'DECEMBRE',
     values = {
       depenses = 1350,
-      recettes = 500
+      recettes = 500,
+      interet = 500
     }
   })
