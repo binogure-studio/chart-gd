@@ -41,8 +41,6 @@ onready var interline_color = Color(grid_color.r, grid_color.g, grid_color.b, gr
 func _ready():
   tween_node.start()
 
-  set_process(true)
-
 func initialize(show_label, points_color = {}, animation_duration = 1.0):
   set_labels(show_label)
   current_animation_duration = animation_duration
@@ -211,7 +209,7 @@ func compute_sprites(points_data):
     # Attacher le sprite à la scène courante
     add_child(sprite)
 
-    var end_pos = initial_pos - Vector2(-min_x, compute_y(value))
+    var end_pos = initial_pos - Vector2(-min_x, compute_y(value) - min_y)
 
     sprite.set_ignore_mouse(false)
     sprite.set_stop_mouse(true)
