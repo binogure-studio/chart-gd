@@ -19,10 +19,12 @@ export(Color) var grid_color = Color(0.7, 0.7, 0.7, 0.7)
 export var line_width = 2.0
 
 var current_data = []
+var min_value = 0.0
 var max_value = 1.0
 var current_animation_duration = 1.0
 var current_point_color = {}
 var current_show_label = LABELS_TO_SHOW.NO_LABEL
+var current_mouse_over = null
 
 onready var tween_node = get_node('tween')
 onready var texture_size = dot_texture.get_size()
@@ -38,6 +40,8 @@ onready var interline_color = Color(grid_color.r, grid_color.g, grid_color.b, gr
 
 func _ready():
   tween_node.start()
+
+  set_process(true)
 
 func initialize(show_label, points_color = {}, animation_duration = 1.0):
   set_labels(show_label)
@@ -73,7 +77,28 @@ func set_labels(show_label):
     min_y += LABEL_SPACE.y
     max_y -= min_y
 
-  current_data_size -= 1
+  current_data_size = max(0, current_data_size - 1)
+  move_other_sprites()
+  current_data_size = current_data.size()
+
+func _on_mouse_over(label_type):
+  current_mouse_over = label_type
+
+  update()
+
+func _on_mouse_out(label_type):
+  if current_mouse_over == label_type:
+    current_mouse_over = null
+
+    update()
+
+func set_max_values(max_values):
+  MAX_VALUES = max_values
+
+  _update_scale()
+  clean_chart()
+
+  current_data_size = max(0, current_data_size - 1)
   move_other_sprites()
   current_data_size = current_data.size()
 
@@ -82,14 +107,37 @@ func _draw():
   var horizontal_line = [vertical_line[1], Vector2(min_x + max_x, min_y + max_y)]
   var previous_point = {}
 
+  # Need to draw the 0 ordinate line
+  if min_value < 0:
+    horizontal_line[0].y = min_y + max_y - compute_y(0.0)
+    horizontal_line[1].y = min_y + max_y - compute_y(0.0)
+
   for point_data in current_data:
     var point
 
     for key in point_data.sprites:
+      var current_dot_color = current_point_color[key].dot
+
+      if current_mouse_over != null and current_mouse_over != key:
+        current_dot_color = Color(
+          current_dot_color.r,
+          current_dot_color.g,
+          current_dot_color.b,
+          current_dot_color.a * COLOR_LINE_RATIO)
+
+      point_data.sprites[key].sprite.set_modulate(current_dot_color)
+
       point = point_data.sprites[key].sprite.get_pos() + texture_size * global_scale / 2.0
 
       if previous_point.has(key):
-        draw_line(previous_point[key], point, current_point_color[key].line, line_width)
+        var current_line_width = line_width
+
+        if current_mouse_over != null and current_mouse_over != key:
+          current_line_width = 1.0
+        elif current_mouse_over != null:
+          current_line_width = 3.0
+
+        draw_line(previous_point[key], point, current_point_color[key].line, current_line_width)
 
       previous_point[key] = point
 
@@ -104,9 +152,8 @@ func _draw():
 
       draw_string(label_font, Vector2(point.x, vertical_line[1].y) - string_decal, label, grid_color)
 
-
   if current_show_label & LABELS_TO_SHOW.Y_LABEL:
-    var ordinate_values = number_utils.compute_ordinate_values(max_value)
+    var ordinate_values = number_utils.compute_ordinate_values(max_value, min_value)
 
     for ordinate_value in ordinate_values:
       var label = number_utils.format(ordinate_value)
@@ -123,7 +170,14 @@ func _draw():
       var rect = Rect2(position, LABEL_SPACE / 1.5)
       var label_position = position + LABEL_SPACE * Vector2(1.0, 0.4)
 
-      draw_string(label_font, label_position, legend_label, grid_color)
+      if current_mouse_over != null and current_mouse_over != legend_label:
+        dot_color = Color(
+          dot_color.r,
+          dot_color.g,
+          dot_color.b,
+          dot_color.a * COLOR_LINE_RATIO)
+
+      draw_string(label_font, label_position, tr(legend_label), grid_color)
       draw_rect(rect, dot_color)
 
       position.x += 1.0 * max_x / nb_labels
@@ -132,7 +186,9 @@ func _draw():
   draw_line(horizontal_line[0], horizontal_line[1], grid_color, 1.0)
 
 func compute_y(value):
-  return (value / max_value) * (max_y - texture_size.y)
+  var amplitude = max_value - min_value
+
+  return ((value - min_value) / amplitude) * (max_y - texture_size.y)
 
 func compute_sprites(points_data):
   var sprites = {}
@@ -161,6 +217,9 @@ func compute_sprites(points_data):
     sprite.set_stop_mouse(true)
     sprite.set_tooltip('%s: %s' % [tr(key), number_utils.format(value)])
 
+    sprite.connect('mouse_enter', self, '_on_mouse_over', [key])
+    sprite.connect('mouse_exit', self, '_on_mouse_out', [key])
+
     # Appliquer le déplacement
     animation_move_dot(sprite, end_pos - texture_size * global_scale / 2.0, global_scale, 0.0, current_animation_duration)
 
@@ -175,6 +234,7 @@ func _compute_max_value(point_data):
   # Being able to manage multiple points dynamically
   for key in point_data.values:
     max_value = max(point_data.values[key], max_value)
+    min_value = min(point_data.values[key], min_value)
 
     # Set default color
     if not current_point_color.has(key):
@@ -188,7 +248,7 @@ func _compute_max_value(point_data):
 
 func clean_chart():
   # If there is too many points, remove old ones
-  if current_data.size() >= MAX_VALUES:
+  while current_data.size() >= MAX_VALUES:
     var point_to_remove = current_data[0]
 
     for key in point_to_remove.sprites:
@@ -199,11 +259,29 @@ func clean_chart():
     current_data.remove(0)
     _update_scale()
 
-func create_new_point(point_data):
+func _stop_tween():
   # Reset current tween
-  tween_node.reset_all()
+  tween_node.remove_all()
   tween_node.stop_all()
 
+func clear_chart():
+  _stop_tween()
+  max_value = 1.0
+  min_value = 0.0
+
+  for point_to_remove in current_data:
+
+    for key in point_to_remove.sprites:
+      var sprite = point_to_remove.sprites[key]
+
+      sprite.sprite.queue_free()
+
+  current_data = []
+  _update_scale()
+  update()
+
+func create_new_point(point_data):
+  _stop_tween()
   clean_chart()
   _compute_max_value(point_data)
 
@@ -229,7 +307,6 @@ func _move_other_sprites(points_data, index):
     var delay = sqrt(index) / 10.0
     var sprite = point_data.sprite
     var value = point_data.value
-
     var y = min_y + max_y - compute_y(value)
     var x = min_x + (max_x / current_data_size) * index
 
@@ -244,6 +321,9 @@ func move_other_sprites():
     index += 1
 
 func animation_move_dot(node, end_pos, end_scale, delay = 0.0, duration = 0.5):
+  if node == null:
+    return
+
   var current_pos = node.get_pos()
   var current_scale = node.get_scale()
 

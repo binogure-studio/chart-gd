@@ -1,6 +1,8 @@
 extends Control
 
 onready var chart_node = get_node('chart')
+onready var fps_label = get_node('benchmark/fps')
+onready var points_label = get_node('benchmark/points')
 
 func _ready():
   chart_node.initialize(chart_node.LABELS_TO_SHOW.NO_LABEL,
@@ -10,6 +12,14 @@ func _ready():
     interet = Color(0.5, 0.22, 0.6)
   })
 
+  reset()
+  set_process(true)
+
+func _process(delta):
+  fps_label.set_text('FPS: %02d' % [OS.get_frames_per_second()])
+  points_label.set_text('NB POINTS: %d' % [chart_node.current_data_size * 3.0])
+
+func reset():
   chart_node.create_new_point({
     label = 'JANVIER',
     values = {
@@ -24,7 +34,7 @@ func _ready():
     values = {
       depenses = 500,
       recettes = 1020,
-      interet = 150
+      interet = -150
     }
   })
 
@@ -33,7 +43,7 @@ func _ready():
     values = {
       depenses = 10,
       recettes = 1575,
-      interet = 450
+      interet = -450
     }
   })
 
@@ -42,7 +52,7 @@ func _ready():
     values = {
       depenses = 350,
       recettes = 750,
-      interet = 509
+      interet = -509
     }
   })
 
@@ -51,7 +61,7 @@ func _ready():
     values = {
       depenses = 1350,
       recettes = 750,
-      interet = 505
+      interet = -505
     }
   })
 
@@ -60,7 +70,7 @@ func _ready():
     values = {
       depenses = 350,
       recettes = 1750,
-      interet = 950
+      interet = -950
     }
   })
 
@@ -69,7 +79,7 @@ func _ready():
     values = {
       depenses = 100,
       recettes = 1500,
-      interet = 350
+      interet = -350
     }
   })
 
@@ -78,7 +88,7 @@ func _ready():
     values = {
       depenses = 350,
       recettes = 750,
-      interet = 500
+      interet = -500
     }
   })
 
@@ -87,7 +97,7 @@ func _ready():
     values = {
       depenses = 1350,
       recettes = 750,
-      interet = 50
+      interet = -50
     }
   })
 
@@ -96,7 +106,7 @@ func _ready():
     values = {
       depenses = 350,
       recettes = 1750,
-      interet = 750
+      interet = -750
     }
   })
 
@@ -105,7 +115,7 @@ func _ready():
     values = {
       depenses = 450,
       recettes = 200,
-      interet = 150
+      interet = -150
     }
   })
 
@@ -114,6 +124,6 @@ func _ready():
     values = {
       depenses = 1350,
       recettes = 500,
-      interet = 500
+      interet = -500
     }
   })
