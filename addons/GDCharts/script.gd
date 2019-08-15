@@ -1,4 +1,4 @@
-extends Control
+extends ReferenceFrame
 
 enum LABELS_TO_SHOW {
   NO_LABEL = 0,
@@ -7,7 +7,6 @@ enum LABELS_TO_SHOW {
   LEGEND_LABEL = 4
 }
 
-const number_utils = preload('res://src/number.gd')
 const COLOR_LINE_RATIO = 0.5
 const LABEL_SPACE = Vector2(64.0, 32.0)
 
@@ -26,7 +25,7 @@ var current_point_color = {}
 var current_show_label = LABELS_TO_SHOW.NO_LABEL
 var current_mouse_over = null
 
-onready var tween_node = get_node('tween')
+onready var tween_node = Tween.new()
 onready var texture_size = dot_texture.get_size()
 onready var min_x = 0.0
 onready var max_x = get_size().x
@@ -39,7 +38,9 @@ onready var global_scale = Vector2(1.0, 1.0) / sqrt(MAX_VALUES)
 onready var interline_color = Color(grid_color.r, grid_color.g, grid_color.b, grid_color.a * 0.5)
 
 func _ready():
-  tween_node.start()
+  add_child(tween_node)
+
+  tween_node.call_deferred('start')
 
 func initialize(show_label, points_color = {}, animation_duration = 1.0):
   set_labels(show_label)
@@ -151,10 +152,10 @@ func _draw():
       draw_string(label_font, Vector2(point.x, vertical_line[1].y) - string_decal, label, grid_color)
 
   if current_show_label & LABELS_TO_SHOW.Y_LABEL:
-    var ordinate_values = number_utils.compute_ordinate_values(max_value, min_value)
+    var ordinate_values = compute_ordinate_values(max_value, min_value)
 
     for ordinate_value in ordinate_values:
-      var label = number_utils.format(ordinate_value)
+      var label = format(ordinate_value)
       var position = Vector2(max(0, 6.0 -label.length()) * 9.5, min_y + max_y - compute_y(ordinate_value))
       draw_string(label_font, position, label, grid_color)
 
@@ -213,7 +214,7 @@ func compute_sprites(points_data):
 
     sprite.set_ignore_mouse(false)
     sprite.set_stop_mouse(true)
-    sprite.set_tooltip('%s: %s' % [tr(key), number_utils.format(value)])
+    sprite.set_tooltip('%s: %s' % [tr(key), format(value)])
 
     sprite.connect('mouse_enter', self, '_on_mouse_over', [key])
     sprite.connect('mouse_exit', self, '_on_mouse_out', [key])
@@ -287,7 +288,7 @@ func create_new_point(point_data):
   move_other_sprites()
 
   # Sauvegarde le sprite courant
-  current_data.append({
+  current_data.push_back({
     label = point_data.label,
     sprites = compute_sprites(point_data)
   })
@@ -331,3 +332,50 @@ func animation_move_dot(node, end_pos, end_scale, delay = 0.0, duration = 0.5):
 
 func _update_draw(object = null):
   update()
+
+# Utilitary functions
+const ordinary_factor = 10
+const range_factor = 1000
+const units = ['', 'K', 'M', 'B', 'G']
+
+func format(number, format_text_custom = '%.2f %s'):
+  var unit_index = 0
+  var format_text = '%d %s'
+  var ratio = 1
+
+  for index in range(0, units.size()):
+    var computed_ratio = pow(range_factor, index)
+
+    if abs(number) > computed_ratio:
+      ratio = computed_ratio
+      unit_index = index
+
+      if index > 0:
+        format_text = format_text_custom
+
+  return format_text % [(number / ratio), units[unit_index]]
+
+func compute_ordinate_values(max_value, min_value):
+  var amplitude = max_value - min_value
+  var unit_index = 0
+  var ordinate_values = [-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10]
+  var result = []
+  var ratio = 1
+
+  for index in range(0, ordinary_factor):
+    var computed_ratio = pow(ordinary_factor, index)
+
+    if abs(amplitude) > computed_ratio:
+      ratio = computed_ratio
+      unit_index = index
+      ordinate_values = []
+
+      for index in range(-6, 6):
+        ordinate_values.push_back(5 * index * computed_ratio / ordinary_factor)
+
+  # Keep only valid values
+  for value in ordinate_values:
+    if value <= max_value and value >= min_value:
+      result.push_back(value)
+
+  return result
