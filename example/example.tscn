@@ -22,7 +22,7 @@ script/script = ExtResource( 1 )
 
 rect/min_size = Vector2( 256, 128 )
 focus/ignore_mouse = false
-focus/stop_mouse = true
+focus/stop_mouse = false
 size_flags/horizontal = 3
 size_flags/vertical = 3
 margin/left = 166.0
@@ -37,7 +37,8 @@ label_font = ExtResource( 4 )
 MAX_VALUES = 12
 dot_texture = ExtResource( 5 )
 default_chart_color = Color( 1, 1, 1, 0.8 )
-grid_color = Color( 0.172549, 0.192157, 0.215686, 0.588235 )
+grid_color = Color( 0.0666667, 0.0901961, 0.109804, 0.694118 )
+chart_type = 0
 line_width = 2.0
 
 [node name="group" type="ButtonGroup" parent="."]
@@ -46,11 +47,14 @@ focus/ignore_mouse = false
 focus/stop_mouse = false
 size_flags/horizontal = 2
 size_flags/vertical = 2
-margin/left = 30.0
-margin/top = 170.0
-margin/right = 162.0
-margin/bottom = 285.0
+margin/left = 28.0
+margin/top = 122.0
+margin/right = 160.0
+margin/bottom = 237.0
 alignment = 0
+__meta__ = {
+"_edit_group_": true
+}
 
 [node name="noLabel" type="CheckBox" parent="group"]
 
@@ -155,6 +159,77 @@ click_on_press = true
 enabled_focus_mode = 2
 shortcut = null
 text = "All labels"
+flat = false
+align = 0
+
+[node name="split" type="ColorFrame" parent="."]
+
+rect/min_size = Vector2( 132, 1 )
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 28.0
+margin/top = 243.0
+margin/right = 160.0
+margin/bottom = 244.0
+color = Color( 0, 0, 0, 1 )
+
+[node name="groupType" type="ButtonGroup" parent="."]
+
+focus/ignore_mouse = false
+focus/stop_mouse = false
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 28.0
+margin/top = 256.0
+margin/right = 160.0
+margin/bottom = 302.0
+alignment = 0
+__meta__ = {
+"_edit_group_": true
+}
+
+[node name="line" type="CheckBox" parent="groupType"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 0.0
+margin/top = 0.0
+margin/right = 132.0
+margin/bottom = 23.0
+custom_colors/font_color = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_hover = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_pressed = Color( 0.172549, 0.192157, 0.215686, 1 )
+toggle_mode = true
+is_pressed = true
+click_on_press = true
+enabled_focus_mode = 2
+shortcut = null
+text = "Line chart"
+flat = false
+align = 0
+
+[node name="pie" type="CheckBox" parent="groupType"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 0.0
+margin/top = 23.0
+margin/right = 132.0
+margin/bottom = 46.0
+custom_colors/font_color = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_hover = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_pressed = Color( 0.172549, 0.192157, 0.215686, 1 )
+toggle_mode = true
+click_on_press = true
+enabled_focus_mode = 2
+shortcut = null
+text = "Pie chart"
 flat = false
 align = 0
 
@@ -291,6 +366,14 @@ max_lines_visible = -1
 [connection signal="pressed" from="group/legend" to="chart" method="set_labels" binds= [ 4 ]]
 
 [connection signal="pressed" from="group/all" to="chart" method="set_labels" binds= [ 7 ]]
+
+[connection signal="pressed" from="groupType/line" to="chart" method="set_chart_type" binds= [ 0 ]]
+
+[connection signal="pressed" from="groupType/line" to="." method="reset" flags=3]
+
+[connection signal="pressed" from="groupType/pie" to="chart" method="set_chart_type" binds= [ 1 ]]
+
+[connection signal="pressed" from="groupType/pie" to="." method="reset" flags=3]
 
 [connection signal="pressed" from="container/controls/clear" to="chart" method="clear_chart"]
 
