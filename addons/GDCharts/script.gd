@@ -23,6 +23,7 @@ export(Color) var default_chart_color = Color('#ccffffff')
 export(Color) var grid_color = Color('#b111171c')
 export(int, 'Line', 'Pie') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
 export var line_width = 2.0
+export(float, 1.0, 2.0, 0.1) var hovered_radius_ratio = 1.1
 
 var current_data = []
 var min_value = 0.0
@@ -34,6 +35,9 @@ var current_mouse_over = null
 
 class PieChartData extends Object:
   var data
+  var hovered_item = null
+  var hovered_radius_ratio = 1.1
+
   func _init():
     data = {}
 
@@ -48,11 +52,19 @@ class PieChartData extends Object:
 
     return data[param]
 
+  func set_hovered_item(name):
+    hovered_item = name
+
   func set_radius(param, value):
     return _set(_format_radius_key(param), value)
 
   func get_radius(param):
-    return _get(_format_radius_key(param))
+    var radius_ratio = 1.0
+
+    if param == hovered_item:
+      radius_ratio = hovered_radius_ratio
+
+    return _get(_format_radius_key(param)) * radius_ratio
 
   func _format_radius_key(param):
     return '%s_radius' % [param]
@@ -64,7 +76,7 @@ var pie_chart_current_data = PieChartData.new()
 
 # Node create in the initializion phase
 var tween_node = Tween.new()
-var tooltip_value = ''
+var tooltip_data = null
 
 onready var texture_size = dot_texture.get_size()
 onready var min_x = 0.0
@@ -83,12 +95,13 @@ func _init():
 
 func _ready():
   tween_node.call_deferred('start')
+  pie_chart_current_data.hovered_radius_ratio = hovered_radius_ratio
 
 func set_chart_type(value):
   if chart_type != value:
     clear_chart()
     chart_type = value
-    update_tooltip(false)
+    update_tooltip()
     set_process_input(chart_type == CHART_TYPE.PIE_CHART)
 
     update()
@@ -97,26 +110,52 @@ func _input(event):
   if event.type == InputEvent.MOUSE_MOTION:
     var center_point = current_position + Vector2(min_x + max_x, min_y + max_y) / 2.0
     var computed_radius = round(min(max_y - min_y, max_x - min_x) / 2.0)
+    var hovered_data = null
+    var hovered_name = null
 
-    update_tooltip(event.pos.distance_to(center_point) <= computed_radius)
+    if event.pos.distance_to(center_point) <= computed_radius:
+      var centered_position = event.pos - center_point
+      var computed_angle = (360.0 - rad2deg(centered_position.angle() + PI))
+      var total_value = 0.0
+      var initial_angle = 0.0
 
-func update_tooltip(visible):
-  if visible:
-    if tooltip_value == '':
-      var item_keys = current_data[0].keys()
-      var index = item_keys.size()
+      for item_key in current_data[0].keys():
+        total_value += pie_chart_current_data.get(item_key)
 
-      for item_key in item_keys:
-        tooltip_value += '%s: %s' % [item_key, current_data[0][item_key]]
-        index -= 1
+      total_value = max(1, total_value)
 
-        if index > 0:
-          tooltip_value += '\n'
+      for item_key in current_data[0].keys():
+        var item_value = pie_chart_current_data.get(item_key)
+        var ending_angle = min(initial_angle + item_value * 360.0 / total_value, 359.9)
 
-      set_tooltip(tooltip_value)
-  elif tooltip_value != '':
-    tooltip_value = ''
+        if computed_angle > initial_angle and computed_angle <= ending_angle:
+          hovered_name = item_key
+          hovered_data = {
+            name = item_key,
+            value = item_value
+          }
+          break
+
+        initial_angle = ending_angle
+
+    pie_chart_current_data.set_hovered_item(hovered_name)
+    update_tooltip(hovered_data)
+
+func update_tooltip(data = null):
+  var update_frame = false
+
+  if data != null:
+    if tooltip_data != data:
+      set_tooltip('%s: %s' % [data.name, data.value])
+      update_frame = true
+  elif tooltip_data != null:
     set_tooltip('')
+    update_frame = true
+
+  tooltip_data = data
+
+  if update_frame:
+    update()
 
 func initialize(show_label, points_color = {}, animation_duration = 1.0):
   set_labels(show_label)
