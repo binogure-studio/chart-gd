@@ -88,13 +88,13 @@ onready var max_y = get_size().y
 onready var current_data_size = MAX_VALUES
 onready var global_scale = Vector2(1.0, 1.0) / sqrt(MAX_VALUES)
 onready var interline_color = Color(grid_color.r, grid_color.g, grid_color.b, grid_color.a * 0.5)
-onready var current_position = get_pos()
 
 func _init():
   add_child(tween_node)
 
 func _ready():
   tween_node.call_deferred('start')
+  set_process_input(chart_type == CHART_TYPE.PIE_CHART)
   pie_chart_current_data.hovered_radius_ratio = hovered_radius_ratio
 
 func set_chart_type(value):
@@ -108,12 +108,13 @@ func set_chart_type(value):
 
 func _input(event):
   if event.type == InputEvent.MOUSE_MOTION:
-    var center_point = current_position + Vector2(min_x + max_x, min_y + max_y) / 2.0
+    var center_point = get_global_pos() + Vector2(min_x + max_x, min_y + max_y) / 2.0
     var computed_radius = round(min(max_y - min_y, max_x - min_x) / 2.0)
     var hovered_data = null
     var hovered_name = null
 
-    if event.pos.distance_to(center_point) <= computed_radius:
+    if event.pos.distance_to(center_point) <= computed_radius and \
+      current_data != null and current_data.size() > 0:
       var centered_position = event.pos - center_point
       var computed_angle = (360.0 - rad2deg(centered_position.angle() + PI))
       var total_value = 0.0
@@ -146,7 +147,7 @@ func update_tooltip(data = null):
 
   if data != null:
     if tooltip_data != data:
-      set_tooltip('%s: %s' % [data.name, data.value])
+      set_tooltip('%s: %.02f%%' % [data.name, data.value])
       update_frame = true
   elif tooltip_data != null:
     set_tooltip('')
@@ -255,7 +256,7 @@ func draw_pie_chart():
       var color = current_point_color[item_key].dot
       var radius = pie_chart_current_data.get_radius(item_key)
 
-      if item_value > 0.0 and radius > 0.0 and ending_angle > initial_angle:
+      if item_value > 0.0 and radius > 1.0 and (ending_angle - initial_angle) > 2.0:
         draw_circle_arc_poly(center_point, radius, initial_angle, ending_angle, color)
         initial_angle = ending_angle
 
@@ -323,7 +324,7 @@ func draw_line_chart():
 func _draw_labels():
   if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
     var nb_labels = current_point_color.keys().size()
-    var position = Vector2(min_x + LABEL_SPACE.x * 0.5, 0.0)
+    var position = Vector2(min_x, 0.0)
 
     for legend_label in current_point_color.keys():
       var dot_color = current_point_color[legend_label].dot
