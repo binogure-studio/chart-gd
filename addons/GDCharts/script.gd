@@ -24,6 +24,7 @@ export(Color) var grid_color = Color('#b111171c')
 export(int, 'Line', 'Pie') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
 export var line_width = 2.0
 export(float, 1.0, 2.0, 0.1) var hovered_radius_ratio = 1.1
+export(float, 0.0, 1.0, 0.01) var chart_background_opacity = 0.334
 
 var current_data = []
 var min_value = 0.0
@@ -127,7 +128,7 @@ func _input(event):
 
       for item_key in current_data[0].keys():
         var item_value = pie_chart_current_data.get(item_key)
-        var ending_angle = min(initial_angle + item_value * 360.0 / total_value, 359.9)
+        var ending_angle = min(initial_angle + item_value * 360.0 / total_value, 359.99)
 
         if computed_angle > initial_angle and computed_angle <= ending_angle:
           hovered_name = item_key
@@ -252,13 +253,39 @@ func draw_pie_chart():
 
     for item_key in current_data[0].keys():
       var item_value = pie_chart_current_data.get(item_key)
-      var ending_angle = min(initial_angle + item_value * 360.0 / total_value, 359.9)
+      var ending_angle = min(initial_angle + item_value * 360.0 / total_value, 359.99)
       var color = current_point_color[item_key].dot
       var radius = pie_chart_current_data.get_radius(item_key)
 
       if item_value > 0.0 and radius > 1.0 and (ending_angle - initial_angle) > 2.0:
         draw_circle_arc_poly(center_point, radius, initial_angle, ending_angle, color)
         initial_angle = ending_angle
+
+func _draw_chart_background(pointListObject):
+  for key in pointListObject.keys():
+    var pointList = pointListObject[key]
+
+    if pointList.size() < 2:
+      continue
+
+    var colors = []
+    var max_y_value = pointList[0].y
+
+    for point in pointList:
+      if max_y_value < point.y:
+        max_y_value = point.y
+
+    pointList.push_front(Vector2(pointList[0].x, min_y + max_y))
+    pointList.push_back(Vector2(pointList[-1].x, min_y + max_y))
+
+    for point in pointList:
+      var computed_color = current_point_color[key].dot
+      var lerp_value = 1.0 - (point.y) / (max_y_value)
+
+      computed_color.a = computed_color.a * (lerp_value) * chart_background_opacity
+      colors.push_back(computed_color)
+
+    draw_polygon(pointList, colors)
 
 func draw_line_chart():
   var vertical_line = [Vector2(min_x, min_y), Vector2(min_x, min_y + max_y)]
@@ -269,6 +296,8 @@ func draw_line_chart():
   if min_value < 0:
     horizontal_line[0].y = min_y + max_y - compute_y(0.0)
     horizontal_line[1].y = min_y + max_y - compute_y(0.0)
+
+  var pointListObject = {}
 
   for point_data in current_data:
     var point
@@ -287,6 +316,14 @@ func draw_line_chart():
 
       point = point_data.sprites[key].sprite.get_pos() + texture_size * global_scale / 2.0
 
+      if not pointListObject.has(key):
+        pointListObject[key] = []
+
+      if point.y < (min_y + max_y - 1.0):
+        pointListObject[key].push_back(point)
+      else:
+        pointListObject[key].push_back(Vector2(point.x, min_y + max_y - 2.0))
+
       if previous_point.has(key):
         var current_line_width = line_width
 
@@ -296,6 +333,10 @@ func draw_line_chart():
           current_line_width = 3.0
 
         draw_line(previous_point[key], point, current_point_color[key].line, current_line_width)
+
+        # Don't add points that are too close of each others
+        if abs(previous_point[key].x - point.x) < 10.0:
+          pointListObject[key].pop_back()
 
       previous_point[key] = point
 
@@ -309,6 +350,8 @@ func draw_line_chart():
       var string_decal = Vector2(14, -LABEL_SPACE.y + 8.0)
 
       draw_string(label_font, Vector2(point.x, vertical_line[1].y) - string_decal, label, grid_color)
+  
+  _draw_chart_background(pointListObject)
 
   if current_show_label & LABELS_TO_SHOW.Y_LABEL:
     var ordinate_values = compute_ordinate_values(max_value, min_value)

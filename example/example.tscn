@@ -41,6 +41,7 @@ grid_color = Color( 0.0666667, 0.0901961, 0.109804, 0.694118 )
 chart_type = 0
 line_width = 2.0
 hovered_radius_ratio = 1.1
+chart_background_opacity = 0.334
 
 [node name="group" type="ButtonGroup" parent="."]
 
@@ -303,7 +304,7 @@ margin/left = 0.0
 margin/top = 52.0
 margin/right = 320.0
 margin/bottom = 76.0
-range/min = 4.0
+range/min = 1.0
 range/max = 99999.0
 range/step = 1.0
 range/page = 0.0
@@ -368,13 +369,13 @@ max_lines_visible = -1
 
 [connection signal="pressed" from="group/all" to="chart" method="set_labels" binds= [ 7 ]]
 
-[connection signal="pressed" from="groupType/line" to="." method="reset" flags=3]
-
 [connection signal="pressed" from="groupType/line" to="chart" method="set_chart_type" binds= [ 0 ]]
 
-[connection signal="pressed" from="groupType/pie" to="." method="reset" flags=3]
+[connection signal="pressed" from="groupType/line" to="." method="reset" flags=3]
 
 [connection signal="pressed" from="groupType/pie" to="chart" method="set_chart_type" binds= [ 1 ]]
+
+[connection signal="pressed" from="groupType/pie" to="." method="reset" flags=3]
 
 [connection signal="pressed" from="container/controls/clear" to="chart" method="clear_chart"]
 
