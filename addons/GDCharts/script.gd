@@ -269,7 +269,7 @@ func _draw_chart_background(pointListObject):
       continue
 
     var colors = []
-    var max_y_value = pointList[0].y
+    var max_y_value = min_y + max_y
 
     for point in pointList:
       if max_y_value < point.y:
