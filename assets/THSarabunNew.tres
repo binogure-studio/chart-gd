@@ -1,11 +1,10 @@
-[gd_resource type="DynamicFont" load_steps=2 format=1]
+[gd_resource type="DynamicFont" load_steps=1 format=2]
 
 [ext_resource path="res://assets/THSarabunNew.ttf" type="DynamicFontData" id=1]
 
 [resource]
 
-font/size = 21
-font/use_mipmaps = false
-font/use_filter = false
-font/font = ExtResource( 1 )
-
+size = 21
+use_mipmaps = false
+use_filter = false
+font_data = ExtResource( 1 )

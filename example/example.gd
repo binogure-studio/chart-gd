@@ -16,7 +16,7 @@ func _ready():
   set_process(true)
 
 func _process(delta):
-  fps_label.set_text('FPS: %02d' % [OS.get_frames_per_second()])
+  fps_label.set_text('FPS: %02d' % [Engine.get_frames_per_second()])
   points_label.set_text('NB POINTS: %d' % [chart_node.current_data_size * 3.0])
 
 func reset():
@@ -127,3 +127,4 @@ func reset():
       interet = -500
     }
   })
+

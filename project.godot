@@ -1,0 +1,48 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=4
+
+_global_script_classes=[  ]
+_global_script_class_icons={
+
+}
+
+[application]
+
+config/name="chart-gd"
+run/main_scene="res://example/example.tscn"
+config/icon="res://icon.png"
+
+[display]
+
+window/stretch/mode="2d"
+window/stretch/aspect="keep"
+
+[editor_plugins]
+
+enabled=PoolStringArray( "GDCharts" )
+
+[gui]
+
+timers/tooltip_delay_sec=0.1
+
+[importer_defaults]
+
+texture={
+"flags/filter": true,
+"flags/mipmaps": true
+}
+
+[physics_2d]
+
+motion_fix_enabled=true
+
+[rendering]
+
+environment/default_clear_color=Color( 0.94902, 0.960784, 0.964706, 1 )

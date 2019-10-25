@@ -1,6 +1,6 @@
 # chart-gd
 
-Tested on Godot Engine 2.1.5, needs to be ported on godot engine 3.+
+Tested on Godot Engine 3.1. For Godot engine 2.1 please use the master branch
 
 ## Preview
 
