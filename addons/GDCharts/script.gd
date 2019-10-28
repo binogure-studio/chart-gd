@@ -270,6 +270,7 @@ func draw_pie_chart():
 func _draw_chart_background(pointListObject):
   for key in pointListObject.keys():
     var pointList = pointListObject[key]
+    var color_alpha_ratio = COLOR_LINE_RATIO if current_mouse_over != null and current_mouse_over != key else 1.0
 
     if pointList.size() < 2:
       continue
@@ -288,7 +289,7 @@ func _draw_chart_background(pointListObject):
       var computed_color = current_point_color[key].dot
       var lerp_value = 1.0 - (point.y) / (max_y_value)
 
-      computed_color.a = computed_color.a * (lerp_value) * chart_background_opacity
+      computed_color.a = computed_color.a * (lerp_value) * chart_background_opacity * color_alpha_ratio
       colors.push_back(computed_color)
 
     draw_polygon(pointList, colors)
