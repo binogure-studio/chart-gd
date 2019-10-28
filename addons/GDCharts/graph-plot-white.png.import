@@ -2,15 +2,15 @@
 
 importer="texture"
 type="StreamTexture"
-path="res://.import/graph-plot-white.png-ef78cc98ce713f21203bfc505e3f2f9e.stex"
+path="res://.import/graph-plot-white.png-b2db87f2374c8f05649a10994a5a9092.stex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/graph-plot-white.png"
-dest_files=[ "res://.import/graph-plot-white.png-ef78cc98ce713f21203bfc505e3f2f9e.stex" ]
+source_file="res://addons/GDCharts/graph-plot-white.png"
+dest_files=[ "res://.import/graph-plot-white.png-b2db87f2374c8f05649a10994a5a9092.stex" ]
 
 [params]
 
@@ -21,7 +21,7 @@ compress/bptc_ldr=0
 compress/normal_map=0
 flags/repeat=0
 flags/filter=true
-flags/mipmaps=true
+flags/mipmaps=false
 flags/anisotropic=false
 flags/srgb=2
 process/fix_alpha_border=true

@@ -18,7 +18,7 @@ const LABEL_SPACE = Vector2(64.0, 32.0)
 
 export(Font) var label_font
 export(int, 6, 24) var MAX_VALUES = 12
-export(Texture) var dot_texture = preload('res://assets/graph-plot-white.png')
+export(Texture) var dot_texture = preload('graph-plot-white.png')
 export(Color) var default_chart_color = Color('#ccffffff')
 export(Color) var grid_color = Color('#b111171c')
 export(int, 'Line', 'Pie') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
