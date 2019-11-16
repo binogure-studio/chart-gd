@@ -578,7 +578,7 @@ func _update_draw(object = null):
 # Utilitary functions
 const ordinary_factor = 10
 const range_factor = 1000
-const units = ['', 'K', 'M', 'B', 'G']
+const units = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
 
 func format(number, format_text_custom = '%.2f %s'):
   var unit_index = 0
