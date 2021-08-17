@@ -14,7 +14,7 @@ enum CHART_TYPE {
 }
 
 const COLOR_LINE_RATIO = 0.5
-const LABEL_SPACE = Vector2(64.0, 32.0)
+const LABEL_SPACE = Vector2(42.0, 42.0)
 
 export(Font) var label_font
 export(int, 6, 24) var MAX_VALUES = 12
@@ -25,36 +25,38 @@ export(int, 'Line', 'Pie') var chart_type = CHART_TYPE.LINE_CHART setget set_cha
 export var line_width = 2.0
 export(float, 1.0, 2.0, 0.1) var hovered_radius_ratio = 1.1
 export(float, 0.0, 1.0, 0.01) var chart_background_opacity = 0.334
+export(bool) var draw_background = true
 
 var current_data = []
 var min_value = 0.0
 var max_value = 1.0
-var current_animation_duration = 1.0
+var current_animation_duration = 0.667
 var current_point_color = {}
 var current_show_label = LABELS_TO_SHOW.NO_LABEL
 var current_mouse_over = null
+var label_pool = []
 
 class PieChartData extends Object:
-  var data
-  var hovered_item = null
-  var hovered_radius_ratio = 1.1
+  var p_data
+  var p_hovered_item = null
+  var p_hovered_radius_ratio = 1.2
 
   func _init():
-    data = {}
+    p_data = {}
 
   func _set(param, value):
-    data[param] = value
+    p_data[param] = value
 
     return true
 
   func _get(param):
-    if not data.has(param):
-      data[param] = 0.0
+    if not p_data.has(param):
+      p_data[param] = 0.0
 
-    return data[param]
+    return p_data[param]
 
   func set_hovered_item(name):
-    hovered_item = name
+    p_hovered_item = name
 
   func set_radius(param, value):
     return _set(_format_radius_key(param), value)
@@ -62,8 +64,8 @@ class PieChartData extends Object:
   func get_radius(param):
     var radius_ratio = 1.0
 
-    if param == hovered_item:
-      radius_ratio = hovered_radius_ratio
+    if param == p_hovered_item:
+      radius_ratio = p_hovered_radius_ratio
 
     return _get(_format_radius_key(param)) * radius_ratio
 
@@ -71,7 +73,7 @@ class PieChartData extends Object:
     return '%s_radius' % [param]
 
   func get_property_list():
-    return data.keys()
+    return p_data.keys()
 
 var pie_chart_current_data = PieChartData.new()
 
@@ -97,6 +99,9 @@ func _ready():
   tween_node.call_deferred('start')
   set_process_input(chart_type == CHART_TYPE.PIE_CHART)
   pie_chart_current_data.hovered_radius_ratio = hovered_radius_ratio
+
+func _exit_tree():
+  pie_chart_current_data.free()
 
 func set_chart_type(value):
   if chart_type != value:
@@ -159,9 +164,15 @@ func update_tooltip(data = null):
   if update_frame:
     update()
 
-func initialize(show_label, points_color = {}, animation_duration = 1.0):
+func initialize(show_label, points_color = {}, animation_duration = 0.667):
   set_labels(show_label)
   current_animation_duration = animation_duration
+
+  for label_item in label_pool:
+    label_item.queue_free()
+
+  # Reset the label pool
+  label_pool = []
 
   for key in points_color:
     current_point_color[key] = {
@@ -172,6 +183,22 @@ func initialize(show_label, points_color = {}, animation_duration = 1.0):
         points_color[key].b,
         points_color[key].a * COLOR_LINE_RATIO)
     }
+
+    if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
+      var dot_label = Label.new()
+
+      dot_label.set_text(tr(key))
+      dot_label.set_autowrap(true)
+      dot_label.set_clip_text(true)
+      dot_label.set_custom_minimum_size(LABEL_SPACE)
+      dot_label.set_ignore_mouse(true)
+      dot_label.set_stop_mouse(false)
+      dot_label.set_valign(Label.VALIGN_CENTER)
+      dot_label.set('custom_colors/font_color', grid_color)
+
+      current_point_color[key].label = dot_label
+      add_child(dot_label)
+      label_pool.push_back(dot_label)
 
 func set_labels(show_label):
   current_show_label = show_label
@@ -225,8 +252,8 @@ func draw_circle_arc_poly(center, radius, angle_from, angle_to, color):
 
   points_arc.push_back(center)
 
-  for i in range(nb_points + 1):
-    var angle_point = deg2rad(angle_from + i * (angle_to - angle_from) / nb_points - 90)
+  for index in range(nb_points + 1):
+    var angle_point = deg2rad(angle_from + index * (angle_to - angle_from) / nb_points - 90)
 
     points_arc.push_back(center + Vector2(cos(angle_point), sin(angle_point)) * radius)
 
@@ -262,43 +289,44 @@ func draw_pie_chart():
         initial_angle = ending_angle
 
 func _draw_chart_background(pointListObject):
-  for key in pointListObject.keys():
-    var pointList = pointListObject[key]
-    var color_alpha_ratio = COLOR_LINE_RATIO if current_mouse_over != null and current_mouse_over != key else 1.0
+  if not draw_background:
+    return
 
-    if pointList.size() < 2:
+  var max_y_value = min_y + max_y
+
+  for key in pointListObject.keys():
+    if pointListObject[key].size() < 2:
       continue
 
+    var pointList = pointListObject[key]
+    var color_alpha_ratio = COLOR_LINE_RATIO if current_mouse_over != null and current_mouse_over != key else 1.0
     var colors = []
-    var max_y_value = min_y + max_y
 
-    for point in pointList:
-      if max_y_value < point.y:
-        max_y_value = point.y
-
-    pointList.push_front(Vector2(pointList[0].x, min_y + max_y))
-    pointList.push_back(Vector2(pointList[-1].x, min_y + max_y))
+    pointList.push_front(Vector2(pointList[0].x, max_y_value))
+    pointList.push_back(Vector2(pointList[-1].x, max_y_value))
 
     for point in pointList:
       var computed_color = current_point_color[key].dot
-      var lerp_value = 1.0 - (point.y) / (max_y_value)
 
-      computed_color.a = computed_color.a * (lerp_value) * chart_background_opacity * color_alpha_ratio
+      computed_color.a *= (1.0 - (point.y / max_y_value)) * chart_background_opacity * color_alpha_ratio
       colors.push_back(computed_color)
 
     draw_polygon(pointList, colors)
 
 func draw_line_chart():
-  var vertical_line = [Vector2(min_x, min_y), Vector2(min_x, min_y + max_y)]
-  var horizontal_line = [vertical_line[1], Vector2(min_x + max_x, min_y + max_y)]
+  var max_y_value = min_y + max_y
+  var vertical_line = [Vector2(min_x, min_y), Vector2(min_x, max_y_value)]
+  var horizontal_line = [vertical_line[1], Vector2(min_x + max_x, max_y_value)]
   var previous_point = {}
+  var pointListObject = {}
+  var y_length = max_y_value - 1.0
+  var texture_center = texture_size * global_scale / 2.0
+  var string_decal = Vector2(14, -LABEL_SPACE.y + 8.0)
 
   # Need to draw the 0 ordinate line
   if min_value < 0:
-    horizontal_line[0].y = min_y + max_y - compute_y(0.0)
-    horizontal_line[1].y = min_y + max_y - compute_y(0.0)
-
-  var pointListObject = {}
+    horizontal_line[0].y = max_y_value - compute_y(0.0)
+    horizontal_line[1].y = horizontal_line[0].y
 
   for point_data in current_data:
     var point
@@ -306,32 +334,24 @@ func draw_line_chart():
     for key in point_data.sprites:
       var current_dot_color = current_point_color[key].dot
 
-      if current_mouse_over != null and current_mouse_over != key:
-        current_dot_color = Color(
-          current_dot_color.r,
-          current_dot_color.g,
-          current_dot_color.b,
-          current_dot_color.a * COLOR_LINE_RATIO)
+      current_dot_color.a = COLOR_LINE_RATIO if current_mouse_over != null and current_mouse_over != key else 1.0
 
       point_data.sprites[key].sprite.set_modulate(current_dot_color)
-
-      point = point_data.sprites[key].sprite.get_pos() + texture_size * global_scale / 2.0
+      point = point_data.sprites[key].sprite.get_pos() + texture_center
 
       if not pointListObject.has(key):
         pointListObject[key] = []
 
-      if point.y < (min_y + max_y - 1.0):
+      if point.y < y_length:
         pointListObject[key].push_back(point)
       else:
-        pointListObject[key].push_back(Vector2(point.x, min_y + max_y - 2.0))
+        pointListObject[key].push_back(Vector2(point.x, max_y_value - 2.0))
 
       if previous_point.has(key):
         var current_line_width = line_width
 
-        if current_mouse_over != null and current_mouse_over != key:
-          current_line_width = 1.0
-        elif current_mouse_over != null:
-          current_line_width = 3.0
+        if current_mouse_over != null:
+          current_line_width = 1.0 if current_mouse_over != key else 3.0
 
         draw_line(previous_point[key], point, current_point_color[key].line, current_line_width)
 
@@ -348,10 +368,9 @@ func draw_line_chart():
 
     if current_show_label & LABELS_TO_SHOW.X_LABEL:
       var label = tr(point_data.label).left(3)
-      var string_decal = Vector2(14, -LABEL_SPACE.y + 8.0)
 
       draw_string(label_font, Vector2(point.x, vertical_line[1].y) - string_decal, label, grid_color)
-  
+
   _draw_chart_background(pointListObject)
 
   if current_show_label & LABELS_TO_SHOW.Y_LABEL:
@@ -359,7 +378,8 @@ func draw_line_chart():
 
     for ordinate_value in ordinate_values:
       var label = format(ordinate_value)
-      var position = Vector2(max(0, 6.0 -label.length()) * 9.5, min_y + max_y - compute_y(ordinate_value))
+      var position = Vector2(max(0, 6.0 - label.length()) * 9.5, max_y_value - compute_y(ordinate_value))
+
       draw_string(label_font, position, label, grid_color)
 
   draw_line(vertical_line[0], vertical_line[1], grid_color, 1.0)
@@ -369,11 +389,24 @@ func _draw_labels():
   if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
     var nb_labels = current_point_color.keys().size()
     var position = Vector2(min_x, 0.0)
+    var position_increment = 1.0 * max_x / nb_labels
+    var rectangle_size = LABEL_SPACE / 1.5
 
     for legend_label in current_point_color.keys():
       var dot_color = current_point_color[legend_label].dot
-      var rect = Rect2(position, LABEL_SPACE / 1.5)
-      var label_position = position + LABEL_SPACE * Vector2(1.0, 0.4)
+      var rect = Rect2(position, rectangle_size)
+      var label_position = position
+      var label_size = LABEL_SPACE
+      var label_node = current_point_color[legend_label].label if current_point_color[legend_label].has('label') else null
+
+      if label_node == null:
+        # Invalid label, meaning, stop drawing, if there is no
+        # text, then there is no need for a rectangle
+        break
+
+      label_position.x += LABEL_SPACE.x * 0.9
+      label_position.y -= label_size.y / 6.0
+      label_size.x += position_increment - (LABEL_SPACE.x + rectangle_size.x)
 
       if current_mouse_over != null and current_mouse_over != legend_label:
         dot_color = Color(
@@ -382,10 +415,10 @@ func _draw_labels():
           dot_color.b,
           dot_color.a * COLOR_LINE_RATIO)
 
-      draw_string(label_font, label_position, tr(legend_label), grid_color)
+      label_node.set_pos(label_position)
+      label_node.set_custom_minimum_size(label_size)
       draw_rect(rect, dot_color)
-
-      position.x += 1.0 * max_x / nb_labels
+      position.x += position_increment
 
 func compute_y(value):
   var amplitude = max_value - min_value
@@ -449,6 +482,8 @@ func _compute_max_value(point_data):
       }
 
 func clean_chart():
+  var update_min_max = false
+
   # If there is too many points, remove old ones
   while current_data.size() >= MAX_VALUES:
     var point_to_remove = current_data[0]
@@ -459,8 +494,20 @@ func clean_chart():
 
         sprite.sprite.queue_free()
 
-    current_data.remove(0)
-    _update_scale()
+    update_min_max = true
+    current_data.pop_front()
+
+  if update_min_max:
+    # Update max value
+    min_value = 0.0
+    max_value = 1.0
+
+    for item_data in current_data:
+      for item_value in item_data.sprites.values():
+        max_value = max(item_value.value, max_value)
+        min_value = min(item_value.value, min_value)
+
+  _update_scale()
 
 func _stop_tween():
   # Reset current tween
@@ -526,13 +573,9 @@ func _move_other_sprites(points_data, index):
   if chart_type == CHART_TYPE.LINE_CHART:
     for key in points_data.sprites:
       var point_data = points_data.sprites[key]
-      var delay = sqrt(index) / 10.0
-      var sprite = point_data.sprite
-      var value = point_data.value
-      var y = min_y + max_y - compute_y(value)
-      var x = min_x + (max_x / current_data_size) * index
+      var position = Vector2(min_x + (max_x / max(1.0, current_data_size)) * index, min_y + max_y - compute_y(point_data.value))
 
-      animation_move_dot(sprite, Vector2(x, y) - texture_size * global_scale / 2.0, global_scale, delay)
+      animation_move_dot(point_data.sprite, position - texture_size * global_scale / 2.0, global_scale, sqrt(index) / 10.0)
   else:
     var sub_index = 0
 
@@ -573,7 +616,7 @@ func _update_draw(object = null):
 # Utilitary functions
 const ordinary_factor = 10
 const range_factor = 1000
-const units = ['', 'K', 'M', 'B', 'G']
+const units = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
 
 func format(number, format_text_custom = '%.2f %s'):
   var unit_index = 0
@@ -592,9 +635,8 @@ func format(number, format_text_custom = '%.2f %s'):
 
   return format_text % [(number / ratio), units[unit_index]]
 
-func compute_ordinate_values(max_value, min_value):
-  var amplitude = max_value - min_value
-  var unit_index = 0
+func compute_ordinate_values(p_max_value, p_min_value):
+  var amplitude = p_max_value - p_min_value
   var ordinate_values = [-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10]
   var result = []
   var ratio = 1
@@ -604,7 +646,6 @@ func compute_ordinate_values(max_value, min_value):
 
     if abs(amplitude) > computed_ratio:
       ratio = computed_ratio
-      unit_index = index
       ordinate_values = []
 
       for index in range(-6, 6):
@@ -612,7 +653,7 @@ func compute_ordinate_values(max_value, min_value):
 
   # Keep only valid values
   for value in ordinate_values:
-    if value <= max_value and value >= min_value:
+    if value <= p_max_value and value >= p_min_value:
       result.push_back(value)
 
   return result

@@ -4,8 +4,8 @@
 
 [resource]
 
-font/size = 21
+font/size = 18
 font/use_mipmaps = false
-font/use_filter = false
+font/use_filter = true
 font/font = ExtResource( 1 )
 
