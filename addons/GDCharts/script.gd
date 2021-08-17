@@ -100,6 +100,9 @@ func _ready():
   set_process_input(chart_type == CHART_TYPE.PIE_CHART)
   pie_chart_current_data.hovered_radius_ratio = hovered_radius_ratio
 
+func _exit_tree():
+  pie_chart_current_data.free()
+
 func set_chart_type(value):
   if chart_type != value:
     clear_chart()
