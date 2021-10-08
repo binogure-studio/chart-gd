@@ -10,18 +10,21 @@ enum LABELS_TO_SHOW {
 
 enum CHART_TYPE {
   LINE_CHART,
-  PIE_CHART
+  PIE_CHART,
+  JAPANESE_CANDLESTICK_CHART
 }
 
+const MAXIMUM_CANDLE_WIDTH = 28.0
 const COLOR_LINE_RATIO = 0.5
 const LABEL_SPACE = Vector2(42.0, 42.0)
+const MAXIMUM_HORIZONTAL_LINES = 10.0
 
 export(Font) var label_font
 export(int, 6, 24) var MAX_VALUES = 12
 export(Texture) var dot_texture = preload('res://assets/graph-plot-white.png')
 export(Color) var default_chart_color = Color('#ccffffff')
 export(Color) var grid_color = Color('#b111171c')
-export(int, 'Line', 'Pie') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
+export(int, 'Line', 'Pie', 'Japanese candlestick') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
 export var line_width = 2.0
 export(float, 1.0, 2.0, 0.1) var hovered_radius_ratio = 1.1
 export(float, 0.0, 1.0, 0.01) var chart_background_opacity = 0.334
@@ -85,6 +88,9 @@ onready var texture_size = dot_texture.get_size()
 onready var min_x = 0.0
 onready var max_x = get_size().x
 
+onready var candle_min_x = 0.0
+onready var candle_max_x = get_size().x
+
 onready var min_y = 0.0
 onready var max_y = get_size().y
 
@@ -107,6 +113,8 @@ func set_chart_type(value):
   if chart_type != value:
     clear_chart()
     chart_type = value
+
+    _update_min_max()
     update_tooltip()
     set_process_input(chart_type == CHART_TYPE.PIE_CHART)
 
@@ -126,12 +134,12 @@ func _input(event):
       var total_value = 0.0
       var initial_angle = 0.0
 
-      for item_key in current_data[0].keys():
+      for item_key in current_data[0]:
         total_value += pie_chart_current_data.get(item_key)
 
       total_value = max(1, total_value)
 
-      for item_key in current_data[0].keys():
+      for item_key in current_data[0]:
         var item_value = pie_chart_current_data.get(item_key)
         var ending_angle = min(initial_angle + item_value * 360.0 / total_value, 359.99)
 
@@ -152,9 +160,10 @@ func update_tooltip(data = null):
   var update_frame = false
 
   if data != null:
-    if tooltip_data != data:
+    if tooltip_data != data and data.has('value'):
       set_tooltip('%s: %.02f%%' % [data.name, data.value])
       update_frame = true
+
   elif tooltip_data != null:
     set_tooltip('')
     update_frame = true
@@ -168,11 +177,7 @@ func initialize(show_label, points_color = {}, animation_duration = 0.667):
   set_labels(show_label)
   current_animation_duration = animation_duration
 
-  for label_item in label_pool:
-    label_item.queue_free()
-
-  # Reset the label pool
-  label_pool = []
+  _clear_labels()
 
   for key in points_color:
     current_point_color[key] = {
@@ -184,42 +189,78 @@ func initialize(show_label, points_color = {}, animation_duration = 0.667):
         points_color[key].a * COLOR_LINE_RATIO)
     }
 
-    if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
-      var dot_label = Label.new()
+  _update_labels()
 
-      dot_label.set_text(tr(key))
-      dot_label.set_autowrap(true)
-      dot_label.set_clip_text(true)
-      dot_label.set_custom_minimum_size(LABEL_SPACE)
-      dot_label.set_ignore_mouse(true)
-      dot_label.set_stop_mouse(false)
-      dot_label.set_valign(Label.VALIGN_CENTER)
-      dot_label.set('custom_colors/font_color', grid_color)
+func _update_labels():
+  if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
+    for key in current_point_color:
+      if not current_point_color[key].has('wref_label') or current_point_color[key].wref_label.get_ref() == null:
+        var dot_label = Label.new()
 
-      current_point_color[key].label = dot_label
-      add_child(dot_label)
-      label_pool.push_back(dot_label)
+        dot_label.set_text(tr(key))
+        dot_label.set_autowrap(true)
+        dot_label.set_clip_text(true)
+        dot_label.set_custom_minimum_size(LABEL_SPACE)
+        dot_label.set_ignore_mouse(true)
+        dot_label.set_stop_mouse(false)
+        dot_label.set_valign(Label.VALIGN_CENTER)
+        dot_label.set('custom_colors/font_color', grid_color)
+
+        current_point_color[key].label = dot_label
+        current_point_color[key].wref_label = weakref(dot_label)
+
+        # FIXME
+        # Might lead to a crash
+        add_child(dot_label)
+        label_pool.push_back(weakref(dot_label))
+
+  else:
+    _clear_labels()
+
+func _clear_labels():
+  for label_item in label_pool:
+    if label_item != null and label_item.get_ref() != null:
+      label_item.get_ref().queue_free()
+
+  # Reset the label pool
+  label_pool = []  
 
 func set_labels(show_label):
-  current_show_label = show_label
+  # No label for 
+  if chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+    current_show_label = LABELS_TO_SHOW.NO_LABEL
 
+  else:
+    current_show_label = show_label
+
+  _update_min_max()
+
+func _update_min_max():
   # Reset values
   min_y = 0.0
   min_x = 0.0
   max_y = get_size().y
   max_x = get_size().x
 
-  if current_show_label & LABELS_TO_SHOW.X_LABEL:
-    max_y -= LABEL_SPACE.y
+  if chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+    var candle_width = _compute_candle_width()
 
-  if current_show_label & LABELS_TO_SHOW.Y_LABEL:
-    min_x += LABEL_SPACE.x
-    max_x -= min_x
+    candle_min_x = min_x + candle_width / 2.0
+    candle_max_x = max_x - candle_width / 2.0
 
-  if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
-    min_y += LABEL_SPACE.y
-    max_y -= min_y
+  else:
+    if current_show_label & LABELS_TO_SHOW.X_LABEL:
+      max_y -= LABEL_SPACE.y
 
+    if current_show_label & LABELS_TO_SHOW.Y_LABEL:
+      min_x += LABEL_SPACE.x
+      max_x -= min_x
+
+    if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
+      min_y += LABEL_SPACE.y
+      max_y -= min_y
+
+  _update_labels()
   current_data_size = max(0, current_data_size - 1)
   move_other_sprites()
   current_data_size = current_data.size()
@@ -238,7 +279,6 @@ func _on_mouse_out(label_type):
 func set_max_values(max_values):
   MAX_VALUES = max_values
 
-  _update_scale()
   clean_chart()
 
   current_data_size = max(0, current_data_size - 1)
@@ -262,10 +302,14 @@ func draw_circle_arc_poly(center, radius, angle_from, angle_to, color):
 func _draw():
   if chart_type == CHART_TYPE.LINE_CHART:
     draw_line_chart()
+    _draw_labels()
+
+  elif chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+    draw_japanese_candlestick_chart()
+
   else:
     draw_pie_chart()
-
-  _draw_labels()
+    _draw_labels()
 
 func draw_pie_chart():
   var center_point = Vector2(min_x + max_x, min_y + max_y) / 2.0
@@ -273,12 +317,12 @@ func draw_pie_chart():
   var initial_angle = 0.0
 
   if not current_data.empty():
-    for item_key in current_data[0].keys():
+    for item_key in current_data[0]:
       total_value += pie_chart_current_data.get(item_key)
 
     total_value = max(1, total_value)
 
-    for item_key in current_data[0].keys():
+    for item_key in current_data[0]:
       var item_value = pie_chart_current_data.get(item_key)
       var ending_angle = min(initial_angle + item_value * 360.0 / total_value, 359.99)
       var color = current_point_color[item_key].dot
@@ -288,13 +332,55 @@ func draw_pie_chart():
         draw_circle_arc_poly(center_point, radius, initial_angle, ending_angle, color)
         initial_angle = ending_angle
 
+func draw_japanese_candlestick_chart():
+  var max_y_value = min_y + max_y
+  var vertical_line = [Vector2(min_x, min_y), Vector2(min_x, max_y_value)]
+  var horizontal_line = [vertical_line[1], Vector2(min_x + max_x, max_y_value)]
+  var previous_point = {}
+  var pointListObject = {}
+  var y_length = max_y_value - 1.0
+
+  # Need to draw the 0 ordinate line
+  if min_value < 0:
+    horizontal_line[0].y = max_y_value - compute_y_no_texture(0.0)
+    horizontal_line[1].y = horizontal_line[0].y
+
+  var max_min_y_diff = max_y - min_y
+  var number_of_lines = min(MAXIMUM_HORIZONTAL_LINES, max_min_y_diff)
+  var horizontal_line_interval = max_min_y_diff / (number_of_lines + 1.0)
+
+  if number_of_lines > 0:
+    for index in range(0, number_of_lines):
+      var y = max_y - horizontal_line_interval * (index + 1) - min_y
+
+      draw_line(Vector2(min_x, y), Vector2(min_x + max_x, y), grid_color, 1.0)    
+      draw_string(label_font, Vector2(min_x + max_x + 4.0, y + 4.0), '%s$' % [format(compute_value_from_y(max_y - y))], grid_color)
+      index += 1
+
+  for point_data in current_data:
+    # TODO
+    # Draw average line
+    draw_line(
+      point_data.candle.current.line[0],
+      point_data.candle.current.line[1],
+      point_data.color, 1.0)
+
+    draw_rect(
+      point_data.candle.current.rectangle,
+      point_data.color
+    )
+
+  _draw_chart_background(pointListObject)
+  draw_line(vertical_line[0], vertical_line[1], grid_color, 1.0)
+  draw_line(horizontal_line[0], horizontal_line[1], grid_color, 1.0)
+
 func _draw_chart_background(pointListObject):
   if not draw_background:
     return
 
   var max_y_value = min_y + max_y
 
-  for key in pointListObject.keys():
+  for key in pointListObject:
     if pointListObject[key].size() < 2:
       continue
 
@@ -387,22 +473,21 @@ func draw_line_chart():
 
 func _draw_labels():
   if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
-    var nb_labels = current_point_color.keys().size()
     var position = Vector2(min_x, 0.0)
-    var position_increment = 1.0 * max_x / nb_labels
+    var position_increment = 1.0 * max_x / current_point_color.keys().size()
     var rectangle_size = LABEL_SPACE / 1.5
 
-    for legend_label in current_point_color.keys():
+    for legend_label in current_point_color:
       var dot_color = current_point_color[legend_label].dot
-      var rect = Rect2(position, rectangle_size)
-      var label_position = position
+      var label_position = Vector2(position.x, position.y)
       var label_size = LABEL_SPACE
-      var label_node = current_point_color[legend_label].label if current_point_color[legend_label].has('label') else null
+      var label_node = current_point_color[legend_label].label if current_point_color[legend_label].has('label') and current_point_color[legend_label].wref_label.get_ref() else null
+      var rect = Rect2(label_position, rectangle_size)
 
       if label_node == null:
         # Invalid label, meaning, stop drawing, if there is no
         # text, then there is no need for a rectangle
-        break
+        continue
 
       label_position.x += LABEL_SPACE.x * 0.9
       label_position.y -= label_size.y / 6.0
@@ -420,30 +505,65 @@ func _draw_labels():
       draw_rect(rect, dot_color)
       position.x += position_increment
 
+func compute_value_from_y(y_value):
+  var amplitude = max_value - min_value
+
+  return ((y_value / max_y) * amplitude) + min_value
+
 func compute_y(value):
   var amplitude = max_value - min_value
 
   return ((value - min_value) / amplitude) * (max_y - texture_size.y)
+
+func compute_y_no_texture(value):
+  var amplitude = max_value - min_value
+
+  return ((value - min_value) / amplitude) * max_y
+
+func compute_candle(point_data):
+  var candle_width = _compute_candle_width()
+  var initial_pos = Vector2(candle_max_x - candle_width / 2.0, max_y)
+  var M_end_pos = initial_pos - Vector2(-candle_min_x, compute_y_no_texture(point_data.max_value) - min_y)
+  var m_end_pos = initial_pos - Vector2(-candle_min_x, compute_y_no_texture(point_data.min_value) - min_y)
+
+  return {
+    start = {
+      line = [initial_pos, initial_pos],
+      rectangle = Rect2(
+        Vector2(initial_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(point_data.entry_value, point_data.exit_value)) - min_y),
+        Vector2(candle_width, compute_y_no_texture(abs(point_data.entry_value - point_data.exit_value)))
+      )
+    },
+    current = {
+      line = [initial_pos, initial_pos],
+      rectangle = Rect2(
+        Vector2(initial_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(point_data.entry_value, point_data.exit_value)) - min_y),
+        Vector2(candle_width, compute_y_no_texture(abs(point_data.entry_value - point_data.exit_value)))
+      )
+    },
+    end = {
+      line = [m_end_pos, M_end_pos],
+      rectangle = Rect2(
+        Vector2(m_end_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(point_data.entry_value, point_data.exit_value)) - min_y),
+        Vector2(candle_width, compute_y_no_texture(abs(point_data.entry_value - point_data.exit_value)))
+      )
+    }
+  }
 
 func compute_sprites(points_data):
   var sprites = {}
 
   for key in points_data.values:
     var value = points_data.values[key]
-
-    # Création d'un Sprite
     var sprite = TextureFrame.new()
-
-    # Positionne le Sprite
     var initial_pos = Vector2(max_x, max_y)
 
     sprite.set_pos(initial_pos)
-
-    # Attache une texture a ce node
     sprite.set_texture(dot_texture)
     sprite.set_modulate(current_point_color[key].dot)
 
-    # Attacher le sprite à la scène courante
+    # FIXME:
+    # Watch out, this might lead to a random crash
     add_child(sprite)
 
     var end_pos = initial_pos - Vector2(-min_x, compute_y(value) - min_y)
@@ -467,19 +587,24 @@ func compute_sprites(points_data):
 
 func _compute_max_value(point_data):
   # Being able to manage multiple points dynamically
-  for key in point_data.values:
-    max_value = max(point_data.values[key], max_value)
-    min_value = min(point_data.values[key], min_value)
+  if chart_type == CHART_TYPE.LINE_CHART:
+    for key in point_data.values:
+      max_value = max(point_data.values[key], max_value)
+      min_value = min(point_data.values[key], min_value)
 
-    # Set default color
-    if not current_point_color.has(key):
-      current_point_color[key] = {
-        dot = default_chart_color,
-        line = Color(default_chart_color.r,
-          default_chart_color.g,
-          default_chart_color.b,
-          default_chart_color.a * COLOR_LINE_RATIO)
-      }
+      # Set default color
+      if not current_point_color.has(key):
+        current_point_color[key] = {
+          dot = default_chart_color,
+          line = Color(default_chart_color.r,
+            default_chart_color.g,
+            default_chart_color.b,
+            default_chart_color.a * COLOR_LINE_RATIO)
+        }
+
+  else:
+    max_value = max(point_data.max_value, max_value)
+    min_value = min(point_data.min_value, min_value)
 
 func clean_chart():
   var update_min_max = false
@@ -488,7 +613,7 @@ func clean_chart():
   while current_data.size() >= MAX_VALUES:
     var point_to_remove = current_data[0]
 
-    if point_to_remove.has('sprites'):
+    if chart_type == CHART_TYPE.LINE_CHART and point_to_remove.has('sprites'):
       for key in point_to_remove.sprites:
         var sprite = point_to_remove.sprites[key]
 
@@ -503,11 +628,20 @@ func clean_chart():
     max_value = 1.0
 
     for item_data in current_data:
-      for item_value in item_data.sprites.values():
-        max_value = max(item_value.value, max_value)
-        min_value = min(item_value.value, min_value)
+      if chart_type == CHART_TYPE.LINE_CHART:
+        for item_value in item_data.sprites.values():
+          if item_value == null or not item_value.has('value'):
+            continue
+
+          max_value = max(item_value.value, max_value)
+          min_value = min(item_value.value, min_value)
+
+      elif chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+        max_value = max(item_data.max_value, max_value)
+        min_value = min(item_data.min_value, min_value)
 
   _update_scale()
+  _update_min_max()
 
 func _stop_tween():
   # Reset current tween
@@ -540,23 +674,42 @@ func create_new_point(point_data):
     # Move others current_data
     move_other_sprites()
 
-    # Sauvegarde le sprite courant
+    # Save current sprite
     current_data.push_back({
       label = point_data.label,
       sprites = compute_sprites(point_data)
     })
+
+  elif chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+    _compute_max_value(point_data)
+
+    # Move others current_data
+    move_other_sprites()
+
+    # Save current sprite
+    current_data.push_back({
+      min_value = point_data.min_value,
+      max_value = point_data.max_value,
+
+      entry_value = point_data.entry_value,
+      exit_value = point_data.exit_value,
+
+      candle = compute_candle(point_data),
+      color = Color('#0092e9') if point_data.entry_value < point_data.exit_value else Color('#ff6363')
+    })
+
   else:
     if current_data.empty():
       var data = {}
 
-      for item_key in point_data.values.keys():
+      for item_key in point_data.values:
         data[item_key] = 0
         pie_chart_current_data.set(item_key, 0.0)
         pie_chart_current_data.set_radius(item_key, 2.0)
 
       current_data.push_back(data)
 
-    for item_key in point_data.values.keys():
+    for item_key in point_data.values:
       current_data[0][item_key] += max(0, point_data.values[item_key])
 
     # Move others current_data
@@ -564,6 +717,9 @@ func create_new_point(point_data):
 
   _update_scale()
   tween_node.start()
+
+func _compute_candle_width():
+  return min((max_x / max(current_data_size, 1.0)) - 2.0, MAXIMUM_CANDLE_WIDTH)
 
 func _update_scale():
   current_data_size = current_data.size()
@@ -573,13 +729,38 @@ func _move_other_sprites(points_data, index):
   if chart_type == CHART_TYPE.LINE_CHART:
     for key in points_data.sprites:
       var point_data = points_data.sprites[key]
+
+      if point_data == null or not point_data.has('value'):
+        continue
+
       var position = Vector2(min_x + (max_x / max(1.0, current_data_size)) * index, min_y + max_y - compute_y(point_data.value))
 
       animation_move_dot(point_data.sprite, position - texture_size * global_scale / 2.0, global_scale, sqrt(index) / 10.0)
+
+  elif chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+    var candle_width = _compute_candle_width()
+    var M_end_pos = Vector2(candle_min_x + ((candle_max_x - candle_width / 2.0) / max(1.0, current_data_size)) * index, min_y + max_y - compute_y_no_texture(points_data.max_value))
+    var m_end_pos = Vector2(candle_min_x + ((candle_max_x - candle_width / 2.0) / max(1.0, current_data_size)) * index, min_y + max_y - compute_y_no_texture(points_data.min_value))
+
+    points_data.candle.current = {
+      line = points_data.candle.end.line,
+      rectangle = points_data.candle.end.rectangle,
+    }
+    points_data.candle.current = {
+      line = points_data.candle.end.line,
+      rectangle = points_data.candle.end.rectangle,
+    }
+    points_data.candle.end = {
+      line = [m_end_pos, M_end_pos],
+      rectangle = Rect2(
+        Vector2(m_end_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(points_data.entry_value, points_data.exit_value)) - min_y),
+        Vector2(candle_width, compute_y_no_texture(abs(points_data.entry_value - points_data.exit_value)))
+      )
+    }
   else:
     var sub_index = 0
 
-    for item_key in points_data.keys():
+    for item_key in points_data:
       animation_move_arcpolygon(item_key, points_data[item_key], sqrt(sub_index) / 5.0)
       sub_index += 1
 
@@ -590,6 +771,27 @@ func move_other_sprites():
     _move_other_sprites(points_data, index)
 
     index += 1
+
+  if chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+    animation_move_candlestick()
+
+func animation_move_candlestick(duration = 0.5):
+  tween_node.interpolate_method(self, '_update_candleticks', 0.0, 1.0, duration, Tween.TRANS_CIRC, Tween.EASE_OUT)
+  tween_node.interpolate_method(self, '_update_draw', 0.0, 1.0, duration, Tween.TRANS_CIRC, Tween.EASE_OUT)
+
+func _update_candleticks(value):
+  for points_data in current_data:
+    points_data.candle.current.line[0].x = lerp(points_data.candle.start.line[0].x, points_data.candle.end.line[0].x, value)
+    points_data.candle.current.line[0].y = lerp(points_data.candle.start.line[0].y, points_data.candle.end.line[0].y, value)
+
+    points_data.candle.current.line[1].x = lerp(points_data.candle.start.line[1].x, points_data.candle.end.line[1].x, value)
+    points_data.candle.current.line[1].y = lerp(points_data.candle.start.line[1].y, points_data.candle.end.line[1].y, value)
+
+    points_data.candle.current.rectangle.pos.x = lerp(points_data.candle.start.rectangle.pos.x, points_data.candle.end.rectangle.pos.x, value)
+    points_data.candle.current.rectangle.pos.y = lerp(points_data.candle.start.rectangle.pos.y, points_data.candle.end.rectangle.pos.y, value)
+
+    points_data.candle.current.rectangle.size.x = lerp(points_data.candle.start.rectangle.size.x, points_data.candle.end.rectangle.size.x, value)
+    points_data.candle.current.rectangle.size.y = lerp(points_data.candle.start.rectangle.size.y, points_data.candle.end.rectangle.size.y, value)
 
 func animation_move_dot(node, end_pos, end_scale, delay = 0.0, duration = 0.5):
   if node == null:
@@ -613,7 +815,9 @@ func animation_move_arcpolygon(key_value, end_value, delay = 0.0, duration = 0.6
 func _update_draw(object = null):
   update()
 
-# Utilitary functions
+############################################
+# Utils scripts
+############################################
 const ordinary_factor = 10
 const range_factor = 1000
 const units = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
@@ -648,8 +852,8 @@ func compute_ordinate_values(p_max_value, p_min_value):
       ratio = computed_ratio
       ordinate_values = []
 
-      for index in range(-6, 6):
-        ordinate_values.push_back(5 * index * computed_ratio / ordinary_factor)
+      for sub_index in range(-6, 6):
+        ordinate_values.push_back(5 * sub_index * computed_ratio / ordinary_factor)
 
   # Keep only valid values
   for value in ordinate_values:

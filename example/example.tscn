@@ -41,7 +41,7 @@ grid_color = Color( 0.0666667, 0.0901961, 0.109804, 0.694118 )
 chart_type = 0
 line_width = 2.0
 hovered_radius_ratio = 1.1
-chart_background_opacity = 0.33
+chart_background_opacity = 0.5
 draw_background = true
 
 [node name="group" type="ButtonGroup" parent="."]
@@ -201,7 +201,7 @@ size_flags/horizontal = 2
 size_flags/vertical = 2
 margin/left = 0.0
 margin/top = 0.0
-margin/right = 132.0
+margin/right = 135.0
 margin/bottom = 23.0
 custom_colors/font_color = Color( 0.172549, 0.192157, 0.215686, 1 )
 custom_colors/font_color_hover = Color( 0.172549, 0.192157, 0.215686, 1 )
@@ -223,7 +223,7 @@ size_flags/horizontal = 2
 size_flags/vertical = 2
 margin/left = 0.0
 margin/top = 23.0
-margin/right = 132.0
+margin/right = 135.0
 margin/bottom = 46.0
 custom_colors/font_color = Color( 0.172549, 0.192157, 0.215686, 1 )
 custom_colors/font_color_hover = Color( 0.172549, 0.192157, 0.215686, 1 )
@@ -233,6 +233,27 @@ click_on_press = true
 enabled_focus_mode = 2
 shortcut = null
 text = "Pie chart"
+flat = false
+align = 0
+
+[node name="japanese" type="CheckBox" parent="groupType"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 0.0
+margin/top = 46.0
+margin/right = 135.0
+margin/bottom = 69.0
+custom_colors/font_color = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_hover = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_pressed = Color( 0.172549, 0.192157, 0.215686, 1 )
+toggle_mode = true
+click_on_press = true
+enabled_focus_mode = 2
+shortcut = null
+text = "Japanese candles"
 flat = false
 align = 0
 
@@ -370,13 +391,11 @@ max_lines_visible = -1
 
 [connection signal="pressed" from="group/all" to="chart" method="set_labels" binds= [ 7 ]]
 
-[connection signal="pressed" from="groupType/line" to="chart" method="set_chart_type" binds= [ 0 ]]
+[connection signal="pressed" from="groupType/line" to="." method="set_chart_type" binds= [ 0 ]]
 
-[connection signal="pressed" from="groupType/line" to="." method="reset" flags=3]
+[connection signal="pressed" from="groupType/pie" to="." method="set_chart_type" binds= [ 1 ]]
 
-[connection signal="pressed" from="groupType/pie" to="chart" method="set_chart_type" binds= [ 1 ]]
-
-[connection signal="pressed" from="groupType/pie" to="." method="reset" flags=3]
+[connection signal="pressed" from="groupType/japanese" to="." method="set_chart_type" binds= [ 2 ]]
 
 [connection signal="pressed" from="container/controls/clear" to="chart" method="clear_chart"]
 
