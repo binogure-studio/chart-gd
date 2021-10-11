@@ -742,7 +742,7 @@ func _move_other_sprites(points_data, index):
     var M_end_pos = Vector2(candle_min_x + ((candle_max_x - candle_width / 2.0) / max(1.0, current_data_size)) * index, min_y + max_y - compute_y_no_texture(points_data.max_value))
     var m_end_pos = Vector2(candle_min_x + ((candle_max_x - candle_width / 2.0) / max(1.0, current_data_size)) * index, min_y + max_y - compute_y_no_texture(points_data.min_value))
 
-    points_data.candle.current = {
+    points_data.candle.start = {
       line = points_data.candle.end.line,
       rectangle = points_data.candle.end.rectangle,
     }
