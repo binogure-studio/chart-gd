@@ -354,10 +354,10 @@ func draw_histobar_chart():
     var need_to_compute_visible_entries = true
     var removed_entries = []
     var histobar_size_with_spaces = histobar_size - max(0, number_of_segment - 1) * HISTOBAR_CHART_SPACE
-    var border_radius = clamp(get_size().y, HISTOBAR_ROUNDED_RADIUS_MINIMUM, HISTOBAR_ROUNDED_RADIUS_MAXIMUM)
+    var border_radius = int(clamp(get_size().y / 2.0, HISTOBAR_ROUNDED_RADIUS_MINIMUM, HISTOBAR_ROUNDED_RADIUS_MAXIMUM))
 
     while need_to_compute_visible_entries:
-      border_radius = clamp(get_size().y, HISTOBAR_ROUNDED_RADIUS_MINIMUM, HISTOBAR_ROUNDED_RADIUS_MAXIMUM)
+      border_radius = int(clamp(get_size().y / 2.0, HISTOBAR_ROUNDED_RADIUS_MINIMUM, HISTOBAR_ROUNDED_RADIUS_MAXIMUM))
       histobar_size_with_spaces = histobar_size - max(0, number_of_segment - 1) * HISTOBAR_CHART_SPACE
       need_to_compute_visible_entries = false
 
@@ -367,7 +367,7 @@ func draw_histobar_chart():
 
         if item_size_x > HISTOBAR_MINIMMUM_SIZE:
           visible_entries[item_key] = item_value
-          border_radius = min(border_radius, item_size_x)
+          border_radius = int(min(border_radius, item_size_x))
 
         elif not removed_entries.has(item_key):
           removed_entries.push_back(item_key)
@@ -378,6 +378,7 @@ func draw_histobar_chart():
 
     var last_position = Vector2(0.0, 0.0)
     var index = 0
+    var half_size = int(get_size().y / 2.0)
 
     for item_key in visible_entries:
       var item_size_x = int(current_data[0][item_key] * (histobar_size_with_spaces / total_value))
@@ -396,7 +397,15 @@ func draw_histobar_chart():
         draw_circle_arc_poly(top_center, border_radius, 270, 360, polygon_color)
         draw_circle_arc_poly(bottom_center, border_radius, 180, 270, polygon_color)
 
-        if item_size_x > border_radius:
+        if half_size == border_radius:
+          points = [
+            last_position + Vector2(border_radius, 0.0),
+            last_position + Vector2(item_size_x, 0.0),
+            last_position + Vector2(item_size_x, get_size().y),
+            last_position + Vector2(border_radius, get_size().y),
+          ]
+
+        elif item_size_x > border_radius:
           points = [
             last_position + Vector2(0.0, border_radius),
             last_position + Vector2(border_radius, border_radius),
@@ -425,7 +434,15 @@ func draw_histobar_chart():
         draw_circle_arc_poly(top_center, border_radius, 0, 90, polygon_color)
         draw_circle_arc_poly(bottom_center, border_radius, 90, 180, polygon_color)
 
-        if item_size_x > border_radius:
+        if half_size == border_radius:
+          points = [
+            last_position,
+            last_position + Vector2(item_size_x - border_radius, 0.0),
+            last_position + Vector2(item_size_x - border_radius, get_size().y),
+            last_position + Vector2(0, get_size().y),
+          ]
+
+        elif item_size_x > border_radius:
           points = [
             last_position,
             last_position + Vector2(item_size_x - border_radius, 0),
