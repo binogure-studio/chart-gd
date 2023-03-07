@@ -1,4 +1,3 @@
-tool
 extends ReferenceFrame
 
 enum LABELS_TO_SHOW {
@@ -11,24 +10,38 @@ enum LABELS_TO_SHOW {
 enum CHART_TYPE {
   LINE_CHART,
   PIE_CHART,
-  JAPANESE_CANDLESTICK_CHART
+  JAPANESE_CANDLESTICK_CHART,
+  HISTOBAR_CHART
 }
 
 const MAXIMUM_CANDLE_WIDTH = 28.0
+const MIN_MAX_RATIO = 1.1
+const MIN_MAX_CLAMP_MAX = 10.0
+const MIN_MAX_CLAMP_MIN = 1.0
 const COLOR_LINE_RATIO = 0.5
 const LABEL_SPACE = Vector2(42.0, 42.0)
 const MAXIMUM_HORIZONTAL_LINES = 10.0
 
-export(Font) var label_font
-export(int, 6, 24) var MAX_VALUES = 12
+const HISTOBAR_MINIMMUM_SIZE = 6.0
+
+export(int, 0, 16) var HISTOBAR_CHART_SPACE = 4.0
+export(int, 0, 8) var HISTOBAR_ROUNDED_RADIUS_MINIMUM = 6.0
+export(int, 8, 128) var HISTOBAR_ROUNDED_RADIUS_MAXIMUM = 64.0
+
+export(Font) var label_font = preload('res://assets/THSarabunNew.tres')
+export(int, 6, 100) var MAX_VALUES = 12
 export(Texture) var dot_texture = preload('res://assets/graph-plot-white.png')
 export(Color) var default_chart_color = Color('#ccffffff')
 export(Color) var grid_color = Color('#b111171c')
-export(int, 'Line', 'Pie', 'Japanese candlestick') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
+export(Color) var background_color = Color('#64dae3ea')
+export(Color) var background_color_alternative = Color('#649ba3aa')
+export(bool) var auto_adjust_dark_mode = true
+export(int, 'Line', 'Pie', 'Japanese candlestick', 'Histobar') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
 export var line_width = 2.0
 export(float, 1.0, 2.0, 0.1) var hovered_radius_ratio = 1.1
 export(float, 0.0, 1.0, 0.01) var chart_background_opacity = 0.334
 export(bool) var draw_background = true
+export(bool) var draw_gradient_background = false
 
 var current_data = []
 var min_value = 0.0
@@ -96,15 +109,25 @@ onready var max_y = get_size().y
 
 onready var current_data_size = MAX_VALUES
 onready var global_scale = Vector2(1.0, 1.0) / sqrt(MAX_VALUES)
-onready var interline_color = Color(grid_color.r, grid_color.g, grid_color.b, grid_color.a * 0.5)
+
+var interline_color = Color(grid_color.r, grid_color.g, grid_color.b, grid_color.a * 0.5)
+var min_value_set = false
+var max_value_set = false
+var computed_grid_color = grid_color
 
 func _init():
   add_child(tween_node)
+  call_deferred('_update_grid_color')
 
 func _ready():
   tween_node.call_deferred('start')
   set_process_input(chart_type == CHART_TYPE.PIE_CHART)
   pie_chart_current_data.hovered_radius_ratio = hovered_radius_ratio
+
+func _update_grid_color(arg0 = null):
+  computed_grid_color = grid_color
+
+  interline_color = Color(computed_grid_color.r, computed_grid_color.g, computed_grid_color.b, computed_grid_color.a * 0.5)
 
 func _exit_tree():
   pie_chart_current_data.free()
@@ -204,7 +227,7 @@ func _update_labels():
         dot_label.set_ignore_mouse(true)
         dot_label.set_stop_mouse(false)
         dot_label.set_valign(Label.VALIGN_CENTER)
-        dot_label.set('custom_colors/font_color', grid_color)
+        dot_label.set('custom_colors/font_color', computed_grid_color)
 
         current_point_color[key].label = dot_label
         current_point_color[key].wref_label = weakref(dot_label)
@@ -227,7 +250,7 @@ func _clear_labels():
 
 func set_labels(show_label):
   # No label for 
-  if chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+  if chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART or chart_type == CHART_TYPE.HISTOBAR_CHART:
     current_show_label = LABELS_TO_SHOW.NO_LABEL
 
   else:
@@ -307,9 +330,124 @@ func _draw():
   elif chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
     draw_japanese_candlestick_chart()
 
+  elif chart_type == CHART_TYPE.HISTOBAR_CHART:
+    draw_histobar_chart()
+
   else:
     draw_pie_chart()
     _draw_labels()
+
+func draw_histobar_chart():
+  if not current_data.empty():
+    var total_value = 0
+    var number_of_entries = current_data[0].keys().size()
+    var histobar_size = get_size().x
+
+    for item_key in current_data[0]:
+      total_value += current_data[0][item_key]
+
+    total_value = max(1.0, total_value)
+
+    # (nombre de segment de mon histobar) = (taille totale / nombre de données visibles) 
+    var visible_entries = {}
+    var number_of_segment = number_of_entries
+    var need_to_compute_visible_entries = true
+    var removed_entries = []
+    var histobar_size_with_spaces = histobar_size - max(0, number_of_segment - 1) * HISTOBAR_CHART_SPACE
+    var border_radius = clamp(get_size().y, HISTOBAR_ROUNDED_RADIUS_MINIMUM, HISTOBAR_ROUNDED_RADIUS_MAXIMUM)
+
+    while need_to_compute_visible_entries:
+      border_radius = clamp(get_size().y, HISTOBAR_ROUNDED_RADIUS_MINIMUM, HISTOBAR_ROUNDED_RADIUS_MAXIMUM)
+      histobar_size_with_spaces = histobar_size - max(0, number_of_segment - 1) * HISTOBAR_CHART_SPACE
+      need_to_compute_visible_entries = false
+
+      for item_key in current_data[0]:
+        var item_value = current_data[0][item_key]
+        var item_size_x = int(current_data[0][item_key] * (histobar_size_with_spaces / total_value))
+
+        if item_size_x > HISTOBAR_MINIMMUM_SIZE:
+          visible_entries[item_key] = item_value
+          border_radius = min(border_radius, item_size_x)
+
+        elif not removed_entries.has(item_key):
+          removed_entries.push_back(item_key)
+          number_of_segment -= 1
+          need_to_compute_visible_entries = true
+          total_value -= item_value
+          break
+
+    var last_position = Vector2(0.0, 0.0)
+    var index = 0
+
+    for item_key in visible_entries:
+      var item_size_x = int(current_data[0][item_key] * (histobar_size_with_spaces / total_value))
+      var polygon_color = current_point_color[item_key].dot
+      var points = [
+        last_position,
+        last_position + Vector2(item_size_x, 0),
+        last_position + Vector2(item_size_x, get_size().y),
+        last_position + Vector2(0.0, get_size().y)
+      ]
+
+      if index == 0:
+        var top_center = Vector2(border_radius, border_radius)
+        var bottom_center = Vector2(border_radius, get_size().y - border_radius)
+
+        draw_circle_arc_poly(top_center, border_radius, 270, 360, polygon_color)
+        draw_circle_arc_poly(bottom_center, border_radius, 180, 270, polygon_color)
+
+        if item_size_x > border_radius:
+          points = [
+            last_position + Vector2(0.0, border_radius),
+            last_position + Vector2(border_radius, border_radius),
+            last_position + Vector2(border_radius, 0.0),
+
+            last_position + Vector2(item_size_x, 0),
+            last_position + Vector2(item_size_x, get_size().y),
+
+            last_position + Vector2(border_radius, get_size().y),
+            last_position + Vector2(border_radius, get_size().y - border_radius),
+            last_position + Vector2(0.0, get_size().y - border_radius)
+          ]
+
+        else:
+          points = [
+            last_position + Vector2(0, border_radius),
+            last_position + Vector2(item_size_x, border_radius),
+            last_position + Vector2(item_size_x, get_size().y - border_radius),
+            last_position + Vector2(0, get_size().y - border_radius),
+          ]
+
+      elif index == (number_of_segment - 1):
+        var top_center = Vector2(last_position.x + item_size_x - border_radius, border_radius)
+        var bottom_center = Vector2(last_position.x + item_size_x - border_radius, get_size().y - border_radius)
+
+        draw_circle_arc_poly(top_center, border_radius, 0, 90, polygon_color)
+        draw_circle_arc_poly(bottom_center, border_radius, 90, 180, polygon_color)
+
+        if item_size_x > border_radius:
+          points = [
+            last_position,
+            last_position + Vector2(item_size_x - border_radius, 0),
+            last_position + Vector2(item_size_x - border_radius, border_radius),
+            last_position + Vector2(item_size_x, border_radius),
+            last_position + Vector2(item_size_x, get_size().y - border_radius),
+            last_position + Vector2(item_size_x - border_radius, get_size().y - border_radius),
+            last_position + Vector2(item_size_x - border_radius, get_size().y),
+            last_position + Vector2(0.0, get_size().y)
+          ]
+
+        else:
+          points = [
+            last_position + Vector2(0, border_radius),
+            last_position + Vector2(item_size_x, border_radius),
+            last_position + Vector2(item_size_x, get_size().y - border_radius),
+            last_position + Vector2(0, get_size().y - border_radius),
+          ]
+
+      draw_colored_polygon(points, polygon_color)
+      last_position = last_position + Vector2(item_size_x + HISTOBAR_CHART_SPACE, 0.0)
+      index += 1
 
 func draw_pie_chart():
   var center_point = Vector2(min_x + max_x, min_y + max_y) / 2.0
@@ -353,8 +491,8 @@ func draw_japanese_candlestick_chart():
     for index in range(0, number_of_lines):
       var y = max_y - horizontal_line_interval * (index + 1) - min_y
 
-      draw_line(Vector2(min_x, y), Vector2(min_x + max_x, y), grid_color, 1.0)    
-      draw_string(label_font, Vector2(min_x + max_x + 4.0, y + 4.0), '%s$' % [format(compute_value_from_y(max_y - y))], grid_color)
+      draw_line(Vector2(min_x, y), Vector2(min_x + max_x, y), computed_grid_color, 1.0)    
+      draw_string(label_font, Vector2(min_x + max_x + 4.0, y + 4.0), '%s$' % [format(compute_value_from_y(max_y - y))], computed_grid_color)
       index += 1
 
   for point_data in current_data:
@@ -371,30 +509,55 @@ func draw_japanese_candlestick_chart():
     )
 
   _draw_chart_background(pointListObject)
-  draw_line(vertical_line[0], vertical_line[1], grid_color, 1.0)
-  draw_line(horizontal_line[0], horizontal_line[1], grid_color, 1.0)
+  draw_line(vertical_line[0], vertical_line[1], computed_grid_color, 1.0)
+  draw_line(horizontal_line[0], horizontal_line[1], computed_grid_color, 1.0)
 
 func _draw_chart_background(pointListObject):
   if not draw_background:
     return
 
-  var max_y_value = min_y + max_y
+  var horizontal_max_y_value = min_y + max_y
+  var horizontal_line = Vector2(min_x + max_x, horizontal_max_y_value)
+
+  # Need to draw the 0 ordinate line
+  if min_value < 0:
+    horizontal_line.y = horizontal_max_y_value - compute_y(0.0)
 
   for key in pointListObject:
+    var key_alpha = 0.5 if current_mouse_over != null and current_mouse_over != key else 1.0
+
     if pointListObject[key].size() < 2:
       continue
 
     var pointList = pointListObject[key]
+    var max_y_value = pointList[0].y
+    var min_y_value = pointList[0].y
     var color_alpha_ratio = COLOR_LINE_RATIO if current_mouse_over != null and current_mouse_over != key else 1.0
     var colors = []
 
-    pointList.push_front(Vector2(pointList[0].x, max_y_value))
-    pointList.push_back(Vector2(pointList[-1].x, max_y_value))
+    for point in pointList:
+      max_y_value = max(max_y_value, point.y)
+      min_y_value = min(max_y_value, point.y)
+
+    max_y_value += 2
+    max_y_value = max(max_y_value, min_y_value + 64)
+
+    if draw_gradient_background:
+      pointList.push_front(Vector2(pointList[0].x, max_y_value))
+      pointList.push_back(Vector2(pointList[-1].x, max_y_value))
+
+    else:
+      pointList.push_front(Vector2(pointList[0].x, horizontal_line.y))
+      pointList.push_back(Vector2(pointList[-1].x, horizontal_line.y))
 
     for point in pointList:
       var computed_color = current_point_color[key].dot
 
-      computed_color.a *= (1.0 - (point.y / max_y_value)) * chart_background_opacity * color_alpha_ratio
+      if draw_gradient_background:
+        computed_color.a *= (1.0 - (point.y / max_y_value)) * chart_background_opacity * color_alpha_ratio * key_alpha
+
+      else:
+        computed_color.a *= chart_background_opacity * color_alpha_ratio * key_alpha
       colors.push_back(computed_color)
 
     draw_polygon(pointList, colors)
@@ -413,6 +576,35 @@ func draw_line_chart():
   if min_value < 0:
     horizontal_line[0].y = max_y_value - compute_y(0.0)
     horizontal_line[1].y = horizontal_line[0].y
+
+  var background_interval_size = Vector2(
+    abs(horizontal_line[1].x - horizontal_line[0].x),
+    abs(vertical_line[0].y - vertical_line[1].y)
+  )
+
+  background_interval_size.x = max(background_interval_size.x / max(1, (current_data.size() - 1)), 0)
+
+  for index in range(0, current_data.size() - 1):
+    var background_position = Vector2(horizontal_line[0].x + index * background_interval_size.x, vertical_line[0].y)
+    var color = background_color if index % 2 else background_color_alternative
+    var bottom_color = Color(
+      color.r * 0.9,
+      color.g * 0.9,
+      color.b * 0.9,
+      color.a
+    )
+
+    draw_polygon([
+      background_position,
+      background_position + background_interval_size * Vector2(0, 1),
+      background_position + background_interval_size * Vector2(1, 1),
+      background_position + background_interval_size * Vector2(1, 0)
+    ], [
+      color,
+      color,
+      bottom_color,
+      bottom_color
+    ])
 
   for point_data in current_data:
     var point
@@ -447,15 +639,10 @@ func draw_line_chart():
 
       previous_point[key] = point
 
-    draw_line(
-      Vector2(point.x, vertical_line[0].y),
-      Vector2(point.x, vertical_line[1].y),
-      interline_color, 1.0)
-
     if current_show_label & LABELS_TO_SHOW.X_LABEL:
       var label = tr(point_data.label).left(3)
 
-      draw_string(label_font, Vector2(point.x, vertical_line[1].y) - string_decal, label, grid_color)
+      draw_string(label_font, Vector2(point.x, vertical_line[1].y) - string_decal, label, computed_grid_color)
 
   _draw_chart_background(pointListObject)
 
@@ -466,10 +653,10 @@ func draw_line_chart():
       var label = format(ordinate_value)
       var position = Vector2(max(0, 6.0 - label.length()) * 9.5, max_y_value - compute_y(ordinate_value))
 
-      draw_string(label_font, position, label, grid_color)
+      draw_string(label_font, position, label, computed_grid_color)
 
-  draw_line(vertical_line[0], vertical_line[1], grid_color, 1.0)
-  draw_line(horizontal_line[0], horizontal_line[1], grid_color, 1.0)
+  draw_line(vertical_line[0], vertical_line[1], computed_grid_color, 1.0)
+  draw_line(horizontal_line[0], horizontal_line[1], computed_grid_color, 1.0)
 
 func _draw_labels():
   if current_show_label & LABELS_TO_SHOW.LEGEND_LABEL:
@@ -506,46 +693,49 @@ func _draw_labels():
       position.x += position_increment
 
 func compute_value_from_y(y_value):
-  var amplitude = max_value - min_value
-
-  return ((y_value / max_y) * amplitude) + min_value
+  return ((y_value / max_y) * (max_value - min_value)) + min_value
 
 func compute_y(value):
   var amplitude = max_value - min_value
 
   return ((value - min_value) / amplitude) * (max_y - texture_size.y)
 
-func compute_y_no_texture(value):
-  var amplitude = max_value - min_value
+func compute_rectangle_y(value):
+  return value / (max_value - min_value) * max_y
 
-  return ((value - min_value) / amplitude) * max_y
+func compute_y_no_texture(value):
+  return ((value - min_value) / (max_value - min_value)) * max_y
 
 func compute_candle(point_data):
   var candle_width = _compute_candle_width()
   var initial_pos = Vector2(candle_max_x - candle_width / 2.0, max_y)
-  var M_end_pos = initial_pos - Vector2(-candle_min_x, compute_y_no_texture(point_data.max_value) - min_y)
-  var m_end_pos = initial_pos - Vector2(-candle_min_x, compute_y_no_texture(point_data.min_value) - min_y)
+  var M_end_pos = initial_pos - Vector2(-candle_min_x, compute_y_no_texture(point_data.max_value))
+  var m_end_pos = initial_pos - Vector2(-candle_min_x, compute_y_no_texture(point_data.min_value))
+  var y_value = abs(point_data.entry_value - point_data.exit_value)
+
+  if y_value < 0.01:
+    y_value = -1.0
 
   return {
     start = {
       line = [initial_pos, initial_pos],
       rectangle = Rect2(
-        Vector2(initial_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(point_data.entry_value, point_data.exit_value)) - min_y),
-        Vector2(candle_width, compute_y_no_texture(abs(point_data.entry_value - point_data.exit_value)))
+        Vector2(initial_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(point_data.entry_value, point_data.exit_value))),
+        Vector2(candle_width, compute_rectangle_y(y_value))
       )
     },
     current = {
       line = [initial_pos, initial_pos],
       rectangle = Rect2(
-        Vector2(initial_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(point_data.entry_value, point_data.exit_value)) - min_y),
-        Vector2(candle_width, compute_y_no_texture(abs(point_data.entry_value - point_data.exit_value)))
+        Vector2(initial_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(point_data.entry_value, point_data.exit_value))),
+        Vector2(candle_width, compute_rectangle_y(y_value))
       )
     },
     end = {
       line = [m_end_pos, M_end_pos],
       rectangle = Rect2(
-        Vector2(m_end_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(point_data.entry_value, point_data.exit_value)) - min_y),
-        Vector2(candle_width, compute_y_no_texture(abs(point_data.entry_value - point_data.exit_value)))
+        Vector2(m_end_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(point_data.entry_value, point_data.exit_value))),
+        Vector2(candle_width, compute_rectangle_y(y_value))
       )
     }
   }
@@ -603,8 +793,29 @@ func _compute_max_value(point_data):
         }
 
   else:
-    max_value = max(point_data.max_value, max_value)
-    min_value = min(point_data.min_value, min_value)
+    var center_interval = clamp(max_value - (max_value / MIN_MAX_RATIO), MIN_MAX_CLAMP_MIN, MIN_MAX_CLAMP_MAX)
+    
+    max_value = max_value - center_interval
+    min_value = min_value + center_interval
+
+    if min_value_set:
+      min_value = min(point_data.min_value, min_value)
+
+    else:
+      min_value = point_data.min_value
+      min_value_set = true
+
+    if max_value_set:
+      max_value = max(point_data.max_value, max_value)
+
+    else:
+      max_value = point_data.max_value
+      max_value_set = true
+
+    var center_interval = clamp((max_value * MIN_MAX_RATIO) - max_value, MIN_MAX_CLAMP_MIN, MIN_MAX_CLAMP_MAX)
+    
+    min_value = min_value - center_interval
+    max_value = max_value + center_interval
 
 func clean_chart():
   var update_min_max = false
@@ -622,8 +833,12 @@ func clean_chart():
     update_min_max = true
     current_data.pop_front()
 
+  # Update max value
   if update_min_max:
-    # Update max value
+    if chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+      max_value_set = false
+      min_value_set = false
+
     min_value = 0.0
     max_value = 1.0
 
@@ -637,8 +852,25 @@ func clean_chart():
           min_value = min(item_value.value, min_value)
 
       elif chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
-        max_value = max(item_data.max_value, max_value)
-        min_value = min(item_data.min_value, min_value)
+        if max_value_set:
+          max_value = max(item_data.max_value, max_value)
+
+        else:
+          max_value = item_data.max_value
+          max_value_set = true
+
+        if min_value_set:
+          min_value = min(item_data.min_value, min_value)
+
+        else:
+          min_value = item_data.min_value
+          min_value_set = true
+
+    if chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
+      var center_interval = clamp((max_value * MIN_MAX_RATIO) - max_value, MIN_MAX_CLAMP_MIN, MIN_MAX_CLAMP_MAX)
+      
+      min_value = min_value - center_interval
+      max_value = max_value + center_interval
 
   _update_scale()
   _update_min_max()
@@ -679,6 +911,9 @@ func create_new_point(point_data):
       label = point_data.label,
       sprites = compute_sprites(point_data)
     })
+
+  elif chart_type == CHART_TYPE.HISTOBAR_CHART:
+    current_data.push_back(point_data)
 
   elif chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
     _compute_max_value(point_data)
@@ -739,8 +974,12 @@ func _move_other_sprites(points_data, index):
 
   elif chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
     var candle_width = _compute_candle_width()
-    var M_end_pos = Vector2(candle_min_x + ((candle_max_x - candle_width / 2.0) / max(1.0, current_data_size)) * index, min_y + max_y - compute_y_no_texture(points_data.max_value))
-    var m_end_pos = Vector2(candle_min_x + ((candle_max_x - candle_width / 2.0) / max(1.0, current_data_size)) * index, min_y + max_y - compute_y_no_texture(points_data.min_value))
+    var M_end_pos = Vector2(candle_min_x + ((candle_max_x - candle_width / 2.0) / max(1.0, current_data_size)) * index, max_y - compute_y_no_texture(points_data.max_value))
+    var m_end_pos = Vector2(candle_min_x + ((candle_max_x - candle_width / 2.0) / max(1.0, current_data_size)) * index, max_y - compute_y_no_texture(points_data.min_value))
+    var y_value = abs(points_data.entry_value - points_data.exit_value)
+
+    if y_value < 0.01:
+      y_value = -1.0
 
     points_data.candle.start = {
       line = points_data.candle.end.line,
@@ -753,8 +992,8 @@ func _move_other_sprites(points_data, index):
     points_data.candle.end = {
       line = [m_end_pos, M_end_pos],
       rectangle = Rect2(
-        Vector2(m_end_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(points_data.entry_value, points_data.exit_value)) - min_y),
-        Vector2(candle_width, compute_y_no_texture(abs(points_data.entry_value - points_data.exit_value)))
+        Vector2(m_end_pos.x - candle_width / 2.0, max_y - compute_y_no_texture(max(points_data.entry_value, points_data.exit_value))),
+        Vector2(candle_width, compute_rectangle_y(y_value))
       )
     }
   else:

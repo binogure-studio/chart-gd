@@ -38,11 +38,15 @@ MAX_VALUES = 12
 dot_texture = ExtResource( 5 )
 default_chart_color = Color( 1, 1, 1, 0.8 )
 grid_color = Color( 0.0666667, 0.0901961, 0.109804, 0.694118 )
+background_color = Color( 0.854902, 0.890196, 0.917647, 0.392157 )
+background_color_alternative = Color( 0.607843, 0.639216, 0.666667, 0.392157 )
+auto_adjust_dark_mode = true
 chart_type = 0
 line_width = 2.0
 hovered_radius_ratio = 1.1
-chart_background_opacity = 0.5
+chart_background_opacity = 0.334
 draw_background = true
+draw_gradient_background = true
 
 [node name="group" type="ButtonGroup" parent="."]
 
@@ -186,8 +190,8 @@ size_flags/horizontal = 2
 size_flags/vertical = 2
 margin/left = 28.0
 margin/top = 256.0
-margin/right = 160.0
-margin/bottom = 302.0
+margin/right = 163.0
+margin/bottom = 325.0
 alignment = 0
 __meta__ = {
 "_edit_group_": true
@@ -254,6 +258,27 @@ click_on_press = true
 enabled_focus_mode = 2
 shortcut = null
 text = "Japanese candles"
+flat = false
+align = 0
+
+[node name="histobar" type="CheckBox" parent="groupType"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 0.0
+margin/top = 69.0
+margin/right = 135.0
+margin/bottom = 92.0
+custom_colors/font_color = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_hover = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_pressed = Color( 0.172549, 0.192157, 0.215686, 1 )
+toggle_mode = true
+click_on_press = true
+enabled_focus_mode = 2
+shortcut = null
+text = "Histobar"
 flat = false
 align = 0
 
@@ -396,6 +421,8 @@ max_lines_visible = -1
 [connection signal="pressed" from="groupType/pie" to="." method="set_chart_type" binds= [ 1 ]]
 
 [connection signal="pressed" from="groupType/japanese" to="." method="set_chart_type" binds= [ 2 ]]
+
+[connection signal="pressed" from="groupType/histobar" to="." method="set_chart_type" binds= [ 3 ]]
 
 [connection signal="pressed" from="container/controls/clear" to="chart" method="clear_chart"]
 
