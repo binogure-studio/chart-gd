@@ -38,7 +38,7 @@ export(Color) var background_color = Color('#64dae3ea')
 export(Color) var background_color_alternative = Color('#649ba3aa')
 
 export(bool) var auto_adjust_dark_mode = true
-export(int, 'Line', 'Pie', 'Japanese candlestick', 'Histobar') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
+export(int, 'Line', 'Pie', 'Japanese candlestick', 'Histobar', 'Histogram') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
 export(float, 1.0, 128, 0.1) var line_width = 2.0
 export(float, 1.0, 2.0, 0.1) var hovered_radius_ratio = 1.1
 export(float, 0.0, 1.0, 0.01) var chart_background_opacity = 0.334
