@@ -48,6 +48,10 @@ export(bool) var draw_gradient_background = false
 export(Color) var japanese_candle_stick_positive_color = Color('#0092e9')
 export(Color) var japanese_candle_stick_negative_color = Color('#ff6363')
 
+export(String) var histogram_tooltip_value = 'LABEL_ONLINE_USAGE'
+export(String) var histogram_tooltip_maximum_value = 'LABEL_ONLINE_CAPACITY'
+export(String) var histogram_tooltip_percent = 'LABEL_SERVER_LOAD'
+
 export(Color) var histogram_foreground_color = Color('#0092e9')
 export(Color) var histogram_background_color = Color('#c7eaff')
 export(Color) var histogram_warning_color = Color('#ff6363')
@@ -131,7 +135,7 @@ func _init():
 
 func _ready():
   tween_node.call_deferred('start')
-  set_process_input(chart_type == CHART_TYPE.PIE_CHART)
+  _update_process_input()
   pie_chart_current_data.hovered_radius_ratio = hovered_radius_ratio
 
 func _update_grid_color(arg0 = null):
@@ -149,52 +153,79 @@ func set_chart_type(value):
 
     _update_min_max()
     update_tooltip()
-    set_process_input(chart_type == CHART_TYPE.PIE_CHART)
+    _update_process_input()    
 
     update()
 
+func _update_process_input():
+  set_process_input(chart_type == CHART_TYPE.PIE_CHART or chart_type == CHART_TYPE.HISTOGRAM_CHART)
+
 func _input(event):
   if event.type == InputEvent.MOUSE_MOTION:
-    var center_point = get_global_pos() + Vector2(min_x + max_x, min_y + max_y) / 2.0
-    var computed_radius = round(min(max_y - min_y, max_x - min_x) / 2.0)
-    var hovered_data = null
-    var hovered_name = null
+    if chart_type == CHART_TYPE.PIE_CHART:
+      var center_point = get_global_pos() + Vector2(min_x + max_x, min_y + max_y) / 2.0
+      var computed_radius = round(min(max_y - min_y, max_x - min_x) / 2.0)
+      var hovered_data = null
+      var hovered_name = null
 
-    if event.pos.distance_to(center_point) <= computed_radius and \
-      current_data != null and current_data.size() > 0:
-      var centered_position = event.pos - center_point
-      var computed_angle = (360.0 - rad2deg(centered_position.angle() + PI))
-      var total_value = 0.0
-      var initial_angle = 0.0
+      if event.pos.distance_to(center_point) <= computed_radius and \
+        current_data != null and current_data.size() > 0:
+        var centered_position = event.pos - center_point
+        var computed_angle = (360.0 - rad2deg(centered_position.angle() + PI))
+        var total_value = 0.0
+        var initial_angle = 0.0
 
-      for item_key in current_data[0]:
-        total_value += pie_chart_current_data.get(item_key)
+        for item_key in current_data[0]:
+          total_value += pie_chart_current_data.get(item_key)
 
-      total_value = max(1, total_value)
+        total_value = max(1, total_value)
 
-      for item_key in current_data[0]:
-        var item_value = pie_chart_current_data.get(item_key)
-        var ending_angle = min(initial_angle + item_value * 360.0 / total_value, 359.99)
+        for item_key in current_data[0]:
+          var item_value = pie_chart_current_data.get(item_key)
+          var ending_angle = min(initial_angle + item_value * 360.0 / total_value, 359.99)
 
-        if computed_angle > initial_angle and computed_angle <= ending_angle:
-          hovered_name = item_key
-          hovered_data = {
-            name = item_key,
-            value = item_value
+          if computed_angle > initial_angle and computed_angle <= ending_angle:
+            hovered_name = item_key
+            hovered_data = {
+              name = item_key,
+              value = item_value
+            }
+            break
+
+          initial_angle = ending_angle
+
+      pie_chart_current_data.set_hovered_item(hovered_name)
+      update_tooltip(hovered_data)
+
+    else:
+      var interval_size = max_x / MAX_VALUES
+      var event_pos_consolidated = event.pos.x - get_global_pos().x - min_x
+      var tooltip_data = null
+
+      if event_pos_consolidated > 0:
+        var data_index = int(event_pos_consolidated / interval_size)
+
+        if data_index < current_data.size():
+          var name = '%s\n%s: %s\n%s: %s\n%s' % [
+            current_data[data_index].label,
+            tr(histogram_tooltip_value), current_data[data_index].value,
+            tr(histogram_tooltip_maximum_value), current_data[data_index].maximum_value,
+            tr(histogram_tooltip_percent)
+          ]
+
+          tooltip_data = {
+            name = name,
+            value = current_data[data_index].value * 100.0 / max(1.0, current_data[data_index].maximum_value)
           }
-          break
 
-        initial_angle = ending_angle
-
-    pie_chart_current_data.set_hovered_item(hovered_name)
-    update_tooltip(hovered_data)
+      update_tooltip(tooltip_data)
 
 func update_tooltip(data = null):
   var update_frame = false
 
   if data != null:
     if tooltip_data != data and data.has('value'):
-      set_tooltip('%s: %.02f%%' % [data.name, data.value])
+      set_tooltip('%s: %.02f%%' % [tr(data.name), data.value])
       update_frame = true
 
   elif tooltip_data != null:
@@ -345,7 +376,6 @@ func _draw():
 
   elif chart_type == CHART_TYPE.HISTOGRAM_CHART:
     draw_histogram_chart()
-    _draw_labels()
 
   else:
     draw_pie_chart()
@@ -497,6 +527,11 @@ func draw_histobar_chart():
         last_position = last_position + Vector2(item_size_x + HISTOBAR_CHART_SPACE, 0.0)
         index += 1
 
+func compute_y_no_texture_custom_min_max(value, max_current, min_current):
+  var amplitude = max_current - min_current
+
+  return ((value - min_current) / amplitude) * (max_y - texture_size.y)
+
 func draw_histogram_chart():
   var max_y_value = min_y + max_y
   var horizontal_line = [Vector2(min_x, max_y_value), Vector2(min_x + max_x, max_y_value)]
@@ -506,9 +541,25 @@ func draw_histogram_chart():
   var index = 0
   var position_origin = Vector2(0.0, 0.0)
 
+  var max_current = max_value
+  var min_current = min_value
+
+  if current_show_label & LABELS_TO_SHOW.Y_LABEL:
+    var ordinate_data = compute_ordinate_values(max_value, min_current)
+    var ordinate_values = ordinate_data.result
+
+    max_current = ordinate_data.max_value
+    min_current = ordinate_data.min_value
+
+    for ordinate_value in ordinate_values:
+      var label = format(ordinate_value)
+      var position = Vector2(max(0, 6.0 - label.length()) * 9.5, max_y_value - compute_y_no_texture_custom_min_max(ordinate_value, max_current, min_current))
+
+      draw_string(label_font, position, label, computed_grid_color)
+
   for point_data in current_data:
-    var value = (point_data.current * 1.0 / max_value) * max_y
-    var maximum_value = (point_data.maximum_value * 1.0 / max_value) * max_y
+    var value = (point_data.current * 1.0 / max_current) * max_y
+    var maximum_value = (point_data.maximum_value * 1.0 / max_current) * max_y
     var decal_x = index * histogram_bar_size + histogram_margin / 2.0
     var position_value = Vector2(horizontal_line[0].x + decal_x, max_y_value - value)
     var position_maximum_value = Vector2(horizontal_line[0].x + decal_x, max_y_value - maximum_value)
@@ -527,15 +578,6 @@ func draw_histogram_chart():
       var label = tr(point_data.label).left(3)
 
       draw_string(label_font, Vector2(position_value.x, max_y_value) + string_decal, label, computed_grid_color)
-
-  if current_show_label & LABELS_TO_SHOW.Y_LABEL:
-    var ordinate_values = compute_ordinate_values(max_value, min_value)
-
-    for ordinate_value in ordinate_values:
-      var label = format(ordinate_value)
-      var position = Vector2(max(0, 6.0 - label.length()) * 9.5, max_y_value - compute_y(ordinate_value))
-
-      draw_string(label_font, position, label, computed_grid_color)
 
   draw_line(horizontal_line[0], horizontal_line[1], computed_grid_color, 1.0)
 
@@ -737,7 +779,7 @@ func draw_line_chart():
   _draw_chart_background(pointListObject)
 
   if current_show_label & LABELS_TO_SHOW.Y_LABEL:
-    var ordinate_values = compute_ordinate_values(max_value, min_value)
+    var ordinate_values = compute_ordinate_values(max_value, min_value, false).result
 
     for ordinate_value in ordinate_values:
       var label = format(ordinate_value)
@@ -1217,25 +1259,38 @@ func format(number, format_text_custom = '%.2f %s'):
 
   return format_text % [(number / ratio), units[unit_index]]
 
-func compute_ordinate_values(p_max_value, p_min_value):
+func compute_ordinate_values(p_max_value, p_min_value, include_border = true):
   var amplitude = p_max_value - p_min_value
-  var ordinate_values = [-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10]
+  var indices = 6.0
   var result = []
-  var ratio = 1
+  var ordinate_values = []
+  var interval_raw = amplitude / indices
+  var interval_consolidated = 10.0
 
   for index in range(0, ordinary_factor):
     var computed_ratio = pow(ordinary_factor, index)
 
-    if abs(amplitude) > computed_ratio:
-      ratio = computed_ratio
-      ordinate_values = []
+    if abs(interval_raw) < computed_ratio:
+      interval_consolidated = computed_ratio / 2.0
 
-      for sub_index in range(-6, 6):
-        ordinate_values.push_back(5 * sub_index * computed_ratio / ordinary_factor)
+      for sub_index in range(-10, 10):
+        ordinate_values.push_back(sub_index * interval_consolidated)
+      break
+
+  var computed_max_value = p_max_value + interval_consolidated if include_border else p_max_value
+  var computed_min_value = p_min_value - interval_consolidated if include_border else p_min_value
+  var consolidated_min_value = p_min_value
+  var consolidated_max_value = p_max_value
 
   # Keep only valid values
   for value in ordinate_values:
-    if value <= p_max_value and value >= p_min_value:
+    if value < computed_max_value and value > computed_min_value:
+      consolidated_max_value = max(consolidated_max_value, value)
+      consolidated_min_value = min(consolidated_min_value, value)
       result.push_back(value)
 
-  return result
+  return {
+    max_value = consolidated_max_value,
+    min_value = consolidated_min_value,
+    result = result
+  }

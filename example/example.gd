@@ -40,8 +40,8 @@ func _generate_candle_stick_value():
 func _generate_histogram_value(label):
   return {
     label = label,
-    value = randi() % 128,
-    maximum_value = randi() % 128
+    value = randi() % 100,
+    maximum_value = randi() % 100
   }
 
 func reset():
