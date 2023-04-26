@@ -28,11 +28,14 @@ size_flags/vertical = 3
 margin/left = 166.0
 margin/top = 120.0
 margin/right = 938.0
-margin/bottom = 327.0
+margin/bottom = 376.0
 script/script = ExtResource( 2 )
 __meta__ = {
 "_editor_icon": ExtResource( 3 )
 }
+HISTOBAR_CHART_SPACE = 4.0
+HISTOBAR_ROUNDED_RADIUS_MINIMUM = 8
+HISTOBAR_ROUNDED_RADIUS_MAXIMUM = 64
 label_font = ExtResource( 4 )
 MAX_VALUES = 12
 dot_texture = ExtResource( 5 )
@@ -47,6 +50,12 @@ hovered_radius_ratio = 1.1
 chart_background_opacity = 0.334
 draw_background = true
 draw_gradient_background = true
+japanese_candle_stick_positive_color = Color( 0, 0.572549, 0.913725, 1 )
+japanese_candle_stick_negative_color = Color( 1, 0.388235, 0.388235, 1 )
+histogram_foreground_color = Color( 0, 0.572549, 0.913725, 1 )
+histogram_background_color = Color( 0.780392, 0.917647, 1, 1 )
+histogram_warning_color = Color( 1, 0.388235, 0.388235, 1 )
+histogram_margin = 24
 
 [node name="group" type="ButtonGroup" parent="."]
 
@@ -282,6 +291,27 @@ text = "Histobar"
 flat = false
 align = 0
 
+[node name="histogram" type="CheckBox" parent="groupType"]
+
+focus/ignore_mouse = false
+focus/stop_mouse = true
+size_flags/horizontal = 2
+size_flags/vertical = 2
+margin/left = 0.0
+margin/top = 92.0
+margin/right = 135.0
+margin/bottom = 115.0
+custom_colors/font_color = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_hover = Color( 0.172549, 0.192157, 0.215686, 1 )
+custom_colors/font_color_pressed = Color( 0.172549, 0.192157, 0.215686, 1 )
+toggle_mode = true
+click_on_press = true
+enabled_focus_mode = 2
+shortcut = null
+text = "Histogram"
+flat = false
+align = 0
+
 [node name="container" type="VBoxContainer" parent="."]
 
 focus/ignore_mouse = false
@@ -423,6 +453,8 @@ max_lines_visible = -1
 [connection signal="pressed" from="groupType/japanese" to="." method="set_chart_type" binds= [ 2 ]]
 
 [connection signal="pressed" from="groupType/histobar" to="." method="set_chart_type" binds= [ 3 ]]
+
+[connection signal="pressed" from="groupType/histogram" to="." method="set_chart_type" binds= [ 4 ]]
 
 [connection signal="pressed" from="container/controls/clear" to="chart" method="clear_chart"]
 

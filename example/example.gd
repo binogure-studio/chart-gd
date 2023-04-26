@@ -5,20 +5,18 @@ onready var fps_label = get_node('benchmark/fps')
 onready var points_label = get_node('benchmark/points')
 
 func _ready():
-  chart_node.initialize(chart_node.LABELS_TO_SHOW.NO_LABEL,
-  {
-    depenses = Color(1.0, 0.18, 0.18),
-    recettes = Color(0.58, 0.92, 0.07),
-    interet = Color(0.5, 0.22, 0.6)
+  chart_node.initialize(chart_node.LABELS_TO_SHOW.NO_LABEL, {
+    depenses = Color('#fab700'),
+    recettes = Color('#87c33e'),
+    interet = Color('#0092e9')
   })
 
-  reset()
+  set_chart_type(0)
   set_process(true)
 
 func set_chart_type(chart_type):
   chart_node.clear_chart()
   chart_node.set_chart_type(chart_type)
-
   reset()
 
 func _process(delta):
@@ -39,10 +37,19 @@ func _generate_candle_stick_value():
     max_value = max_value
   }
 
+func _generate_histogram_value(label):
+  return {
+    label = label,
+    value = randi() % 128,
+    maximum_value = randi() % 128
+  }
+
 func reset():
   if chart_node.chart_type == chart_node.CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
-    for index in range(0, 12):
+    while chart_node.get_number_of_points() < 11:
       chart_node.create_new_point(_generate_candle_stick_value())
+
+    chart_node.create_new_point(_generate_candle_stick_value())
 
   elif chart_node.chart_type == chart_node.CHART_TYPE.HISTOBAR_CHART:
     chart_node.create_new_point({
@@ -50,6 +57,20 @@ func reset():
       recettes = randi() % 1024,
       interet = randi() % 512
     })
+
+  elif chart_node.chart_type == chart_node.CHART_TYPE.HISTOGRAM_CHART:
+    chart_node.create_new_point(_generate_histogram_value('JANVIER'))
+    chart_node.create_new_point(_generate_histogram_value('FEVRIER'))
+    chart_node.create_new_point(_generate_histogram_value('MARS'))
+    chart_node.create_new_point(_generate_histogram_value('AVRIL'))
+    chart_node.create_new_point(_generate_histogram_value('MAI'))
+    chart_node.create_new_point(_generate_histogram_value('JUIN'))
+    chart_node.create_new_point(_generate_histogram_value('JUILLET'))
+    chart_node.create_new_point(_generate_histogram_value('AOUT'))
+    chart_node.create_new_point(_generate_histogram_value('SEPTEMBRE'))
+    chart_node.create_new_point(_generate_histogram_value('OCTOBRE'))
+    chart_node.create_new_point(_generate_histogram_value('NOVEMBRE'))
+    chart_node.create_new_point(_generate_histogram_value('DECEMBRE'))
 
   else:
     chart_node.create_new_point({

@@ -11,7 +11,8 @@ enum CHART_TYPE {
   LINE_CHART,
   PIE_CHART,
   JAPANESE_CANDLESTICK_CHART,
-  HISTOBAR_CHART
+  HISTOBAR_CHART,
+  HISTOGRAM_CHART
 }
 
 const MAXIMUM_CANDLE_WIDTH = 28.0
@@ -35,13 +36,22 @@ export(Color) var default_chart_color = Color('#ccffffff')
 export(Color) var grid_color = Color('#b111171c')
 export(Color) var background_color = Color('#64dae3ea')
 export(Color) var background_color_alternative = Color('#649ba3aa')
+
 export(bool) var auto_adjust_dark_mode = true
 export(int, 'Line', 'Pie', 'Japanese candlestick', 'Histobar') var chart_type = CHART_TYPE.LINE_CHART setget set_chart_type
-export var line_width = 2.0
+export(float, 1.0, 128, 0.1) var line_width = 2.0
 export(float, 1.0, 2.0, 0.1) var hovered_radius_ratio = 1.1
 export(float, 0.0, 1.0, 0.01) var chart_background_opacity = 0.334
 export(bool) var draw_background = true
 export(bool) var draw_gradient_background = false
+
+export(Color) var japanese_candle_stick_positive_color = Color('#0092e9')
+export(Color) var japanese_candle_stick_negative_color = Color('#ff6363')
+
+export(Color) var histogram_foreground_color = Color('#0092e9')
+export(Color) var histogram_background_color = Color('#c7eaff')
+export(Color) var histogram_warning_color = Color('#ff6363')
+export(int, 0, 32, 1) var histogram_margin = 2
 
 var current_data = []
 var min_value = 0.0
@@ -205,11 +215,7 @@ func initialize(show_label, points_color = {}, animation_duration = 0.667):
   for key in points_color:
     current_point_color[key] = {
       dot = points_color[key],
-      line = Color(
-        points_color[key].r,
-        points_color[key].g,
-        points_color[key].b,
-        points_color[key].a * COLOR_LINE_RATIO)
+      line = Color(points_color[key].r, points_color[key].g, points_color[key].b, points_color[key].a * COLOR_LINE_RATIO)
     }
 
   _update_labels()
@@ -252,6 +258,10 @@ func set_labels(show_label):
   # No label for 
   if chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART or chart_type == CHART_TYPE.HISTOBAR_CHART:
     current_show_label = LABELS_TO_SHOW.NO_LABEL
+
+  elif chart_type == CHART_TYPE.HISTOGRAM_CHART:
+    current_show_label = show_label
+    current_show_label = (current_show_label | LABELS_TO_SHOW.LEGEND_LABEL) ^ LABELS_TO_SHOW.LEGEND_LABEL
 
   else:
     current_show_label = show_label
@@ -333,9 +343,85 @@ func _draw():
   elif chart_type == CHART_TYPE.HISTOBAR_CHART:
     draw_histobar_chart()
 
+  elif chart_type == CHART_TYPE.HISTOGRAM_CHART:
+    draw_histogram_chart()
+    _draw_labels()
+
   else:
     draw_pie_chart()
     _draw_labels()
+
+func _draw_first_part_histobar(last_position, border_radius, item_size_x, polygon_color):
+  var top_center = Vector2(border_radius, border_radius)
+  var bottom_center = Vector2(border_radius, get_size().y - border_radius)
+  var half_size = int(get_size().y / 2.0)
+  var points = [
+    last_position + Vector2(0, border_radius),
+    last_position + Vector2(item_size_x, border_radius),
+    last_position + Vector2(item_size_x, get_size().y - border_radius),
+    last_position + Vector2(0, get_size().y - border_radius),
+  ]
+
+  if half_size == border_radius:
+    points = [
+      last_position + Vector2(border_radius, 0.0),
+      last_position + Vector2(item_size_x, 0.0),
+      last_position + Vector2(item_size_x, get_size().y),
+      last_position + Vector2(border_radius, get_size().y),
+    ]
+
+  elif item_size_x > border_radius:
+    points =  [
+      last_position + Vector2(0.0, border_radius),
+      last_position + Vector2(border_radius, border_radius),
+      last_position + Vector2(border_radius, 0.0),
+
+      last_position + Vector2(item_size_x, 0),
+      last_position + Vector2(item_size_x, get_size().y),
+
+      last_position + Vector2(border_radius, get_size().y),
+      last_position + Vector2(border_radius, get_size().y - border_radius),
+      last_position + Vector2(0.0, get_size().y - border_radius)
+    ]
+
+  draw_circle_arc_poly(top_center, border_radius, 270, 360, polygon_color)
+  draw_circle_arc_poly(bottom_center, border_radius, 180, 270, polygon_color)
+  draw_colored_polygon(points, polygon_color)
+
+func _draw_last_part_histobar(last_position, border_radius, item_size_x, polygon_color):
+  var top_center = Vector2(last_position.x + item_size_x - border_radius, border_radius)
+  var bottom_center = Vector2(last_position.x + item_size_x - border_radius, get_size().y - border_radius)
+  var half_size = int(get_size().y / 2.0)
+  var points = [
+    last_position + Vector2(0, border_radius),
+    last_position + Vector2(item_size_x, border_radius),
+    last_position + Vector2(item_size_x, get_size().y - border_radius),
+    last_position + Vector2(0, get_size().y - border_radius),
+  ]
+
+  if half_size == border_radius:
+    points = [
+      last_position,
+      last_position + Vector2(item_size_x - border_radius, 0.0),
+      last_position + Vector2(item_size_x - border_radius, get_size().y),
+      last_position + Vector2(0, get_size().y),
+    ]
+
+  elif item_size_x > border_radius:
+    points = [
+      last_position,
+      last_position + Vector2(item_size_x - border_radius, 0),
+      last_position + Vector2(item_size_x - border_radius, border_radius),
+      last_position + Vector2(item_size_x, border_radius),
+      last_position + Vector2(item_size_x, get_size().y - border_radius),
+      last_position + Vector2(item_size_x - border_radius, get_size().y - border_radius),
+      last_position + Vector2(item_size_x - border_radius, get_size().y),
+      last_position + Vector2(0.0, get_size().y)
+    ]
+
+  draw_circle_arc_poly(top_center, border_radius, 0, 90, polygon_color)
+  draw_circle_arc_poly(bottom_center, border_radius, 90, 180, polygon_color)
+  draw_colored_polygon(points, polygon_color)
 
 func draw_histobar_chart():
   if not current_data.empty():
@@ -378,93 +464,80 @@ func draw_histobar_chart():
 
     var last_position = Vector2(0.0, 0.0)
     var index = 0
-    var half_size = int(get_size().y / 2.0)
 
-    for item_key in visible_entries:
-      var item_size_x = int(current_data[0][item_key] * (histobar_size_with_spaces / total_value))
+    if visible_entries.size() == 1:
+      var item_size_x = histobar_size_with_spaces / 2.0
+      var item_key = visible_entries.keys()[0]
       var polygon_color = current_point_color[item_key].dot
-      var points = [
-        last_position,
-        last_position + Vector2(item_size_x, 0),
-        last_position + Vector2(item_size_x, get_size().y),
-        last_position + Vector2(0.0, get_size().y)
-      ]
 
-      if index == 0:
-        var top_center = Vector2(border_radius, border_radius)
-        var bottom_center = Vector2(border_radius, get_size().y - border_radius)
+      _draw_first_part_histobar(last_position, border_radius, item_size_x, polygon_color)
+      _draw_last_part_histobar(last_position + Vector2(item_size_x, 0.0), border_radius, item_size_x, polygon_color)
 
-        draw_circle_arc_poly(top_center, border_radius, 270, 360, polygon_color)
-        draw_circle_arc_poly(bottom_center, border_radius, 180, 270, polygon_color)
+    else:
+      for item_key in visible_entries:
+        var item_size_x = int(current_data[0][item_key] * (histobar_size_with_spaces / total_value))
+        var polygon_color = current_point_color[item_key].dot
 
-        if half_size == border_radius:
-          points = [
-            last_position + Vector2(border_radius, 0.0),
-            last_position + Vector2(item_size_x, 0.0),
-            last_position + Vector2(item_size_x, get_size().y),
-            last_position + Vector2(border_radius, get_size().y),
-          ]
-
-        elif item_size_x > border_radius:
-          points = [
-            last_position + Vector2(0.0, border_radius),
-            last_position + Vector2(border_radius, border_radius),
-            last_position + Vector2(border_radius, 0.0),
-
-            last_position + Vector2(item_size_x, 0),
-            last_position + Vector2(item_size_x, get_size().y),
-
-            last_position + Vector2(border_radius, get_size().y),
-            last_position + Vector2(border_radius, get_size().y - border_radius),
-            last_position + Vector2(0.0, get_size().y - border_radius)
-          ]
+        if index == 0:
+          _draw_first_part_histobar(last_position, border_radius, item_size_x, polygon_color)
+          
+        elif index == (number_of_segment - 1):
+          _draw_last_part_histobar(last_position, border_radius, item_size_x, polygon_color)
 
         else:
-          points = [
-            last_position + Vector2(0, border_radius),
-            last_position + Vector2(item_size_x, border_radius),
-            last_position + Vector2(item_size_x, get_size().y - border_radius),
-            last_position + Vector2(0, get_size().y - border_radius),
-          ]
-
-      elif index == (number_of_segment - 1):
-        var top_center = Vector2(last_position.x + item_size_x - border_radius, border_radius)
-        var bottom_center = Vector2(last_position.x + item_size_x - border_radius, get_size().y - border_radius)
-
-        draw_circle_arc_poly(top_center, border_radius, 0, 90, polygon_color)
-        draw_circle_arc_poly(bottom_center, border_radius, 90, 180, polygon_color)
-
-        if half_size == border_radius:
-          points = [
+          var points = [
             last_position,
-            last_position + Vector2(item_size_x - border_radius, 0.0),
-            last_position + Vector2(item_size_x - border_radius, get_size().y),
-            last_position + Vector2(0, get_size().y),
-          ]
-
-        elif item_size_x > border_radius:
-          points = [
-            last_position,
-            last_position + Vector2(item_size_x - border_radius, 0),
-            last_position + Vector2(item_size_x - border_radius, border_radius),
-            last_position + Vector2(item_size_x, border_radius),
-            last_position + Vector2(item_size_x, get_size().y - border_radius),
-            last_position + Vector2(item_size_x - border_radius, get_size().y - border_radius),
-            last_position + Vector2(item_size_x - border_radius, get_size().y),
+            last_position + Vector2(item_size_x, 0),
+            last_position + Vector2(item_size_x, get_size().y),
             last_position + Vector2(0.0, get_size().y)
           ]
 
-        else:
-          points = [
-            last_position + Vector2(0, border_radius),
-            last_position + Vector2(item_size_x, border_radius),
-            last_position + Vector2(item_size_x, get_size().y - border_radius),
-            last_position + Vector2(0, get_size().y - border_radius),
-          ]
+          draw_colored_polygon(points, polygon_color)
 
-      draw_colored_polygon(points, polygon_color)
-      last_position = last_position + Vector2(item_size_x + HISTOBAR_CHART_SPACE, 0.0)
-      index += 1
+        last_position = last_position + Vector2(item_size_x + HISTOBAR_CHART_SPACE, 0.0)
+        index += 1
+
+func draw_histogram_chart():
+  var max_y_value = min_y + max_y
+  var horizontal_line = [Vector2(min_x, max_y_value), Vector2(min_x + max_x, max_y_value)]
+  var previous_point = {}
+  var string_decal = Vector2(8, LABEL_SPACE.y - 8.0)
+  var histogram_bar_size = max(abs(horizontal_line[1].x - horizontal_line[0].x) / max(1, current_data.size()), 0)
+  var index = 0
+  var position_origin = Vector2(0.0, 0.0)
+
+  for point_data in current_data:
+    var value = (point_data.current * 1.0 / max_value) * max_y
+    var maximum_value = (point_data.maximum_value * 1.0 / max_value) * max_y
+    var decal_x = index * histogram_bar_size + histogram_margin / 2.0
+    var position_value = Vector2(horizontal_line[0].x + decal_x, max_y_value - value)
+    var position_maximum_value = Vector2(horizontal_line[0].x + decal_x, max_y_value - maximum_value)
+    var size_maxmimum_value = Vector2(histogram_bar_size - histogram_margin, maximum_value)
+    var size_value = Vector2(histogram_bar_size - histogram_margin, value)
+
+    var rect_value = Rect2(position_value, size_value)
+    var rect_maximum_value = Rect2(position_maximum_value, size_maxmimum_value)
+
+    draw_rect(rect_maximum_value, histogram_background_color)
+    draw_rect(rect_value, point_data.current_color)
+
+    index += 1
+
+    if current_show_label & LABELS_TO_SHOW.X_LABEL:
+      var label = tr(point_data.label).left(3)
+
+      draw_string(label_font, Vector2(position_value.x, max_y_value) + string_decal, label, computed_grid_color)
+
+  if current_show_label & LABELS_TO_SHOW.Y_LABEL:
+    var ordinate_values = compute_ordinate_values(max_value, min_value)
+
+    for ordinate_value in ordinate_values:
+      var label = format(ordinate_value)
+      var position = Vector2(max(0, 6.0 - label.length()) * 9.5, max_y_value - compute_y(ordinate_value))
+
+      draw_string(label_font, position, label, computed_grid_color)
+
+  draw_line(horizontal_line[0], horizontal_line[1], computed_grid_color, 1.0)
 
 func draw_pie_chart():
   var center_point = Vector2(min_x + max_x, min_y + max_y) / 2.0
@@ -809,6 +882,13 @@ func _compute_max_value(point_data):
             default_chart_color.a * COLOR_LINE_RATIO)
         }
 
+  elif chart_type == CHART_TYPE.HISTOGRAM_CHART:
+    max_value = max(point_data.value, max_value)
+    min_value = min(point_data.value, min_value)
+
+    max_value = max(point_data.maximum_value, max_value)
+    min_value = min(point_data.maximum_value, min_value)
+
   else:
     var center_interval = clamp(max_value - (max_value / MIN_MAX_RATIO), MIN_MAX_CLAMP_MIN, MIN_MAX_CLAMP_MAX)
     
@@ -860,7 +940,14 @@ func clean_chart():
     max_value = 1.0
 
     for item_data in current_data:
-      if chart_type == CHART_TYPE.LINE_CHART:
+      if chart_type == CHART_TYPE.HISTOGRAM_CHART:
+        max_value = max(item_data.value, max_value)
+        min_value = min(item_data.value, min_value)
+
+        max_value = max(item_data.maximum_value, max_value)
+        min_value = min(item_data.maximum_value, min_value)
+
+      elif chart_type == CHART_TYPE.LINE_CHART:
         for item_value in item_data.sprites.values():
           if item_value == null or not item_value.has('value'):
             continue
@@ -913,6 +1000,9 @@ func clear_chart():
   _update_scale()
   update()
 
+func get_number_of_points():
+  return current_data.size()
+
 func create_new_point(point_data):
   _stop_tween()
   clean_chart()
@@ -927,6 +1017,22 @@ func create_new_point(point_data):
     current_data.push_back({
       label = point_data.label,
       sprites = compute_sprites(point_data)
+    })
+
+  elif chart_type == CHART_TYPE.HISTOGRAM_CHART:
+    _compute_max_value(point_data)
+
+    # Move others current_data
+    move_other_sprites()
+
+    # Save current sprite
+    current_data.push_back({
+      label = point_data.label,
+      value = point_data.value,
+      current = 0.0,
+      maximum_value = point_data.maximum_value,
+      current_color = histogram_foreground_color,
+      color = histogram_warning_color if point_data.value > point_data.maximum_value else histogram_foreground_color
     })
 
   elif chart_type == CHART_TYPE.HISTOBAR_CHART:
@@ -947,7 +1053,7 @@ func create_new_point(point_data):
       exit_value = point_data.exit_value,
 
       candle = compute_candle(point_data),
-      color = Color('#0092e9') if point_data.entry_value < point_data.exit_value else Color('#ff6363')
+      color = japanese_candle_stick_positive_color if point_data.entry_value < point_data.exit_value else japanese_candle_stick_negative_color
     })
 
   else:
@@ -1013,6 +1119,10 @@ func _move_other_sprites(points_data, index):
         Vector2(candle_width, compute_rectangle_y(y_value))
       )
     }
+
+  elif chart_type == CHART_TYPE.HISTOGRAM_CHART or chart_type == CHART_TYPE.HISTOBAR_CHART:
+    pass
+
   else:
     var sub_index = 0
 
@@ -1031,9 +1141,21 @@ func move_other_sprites():
   if chart_type == CHART_TYPE.JAPANESE_CANDLESTICK_CHART:
     animation_move_candlestick()
 
+  elif chart_type == CHART_TYPE.HISTOGRAM_CHART:
+    animation_move_histogram()
+
 func animation_move_candlestick(duration = 0.5):
   tween_node.interpolate_method(self, '_update_candleticks', 0.0, 1.0, duration, Tween.TRANS_CIRC, Tween.EASE_OUT)
   tween_node.interpolate_method(self, '_update_draw', 0.0, 1.0, duration, Tween.TRANS_CIRC, Tween.EASE_OUT)
+
+func animation_move_histogram(duration = 0.5):
+  tween_node.interpolate_method(self, '_update_histogram', 0.0, 1.0, duration, Tween.TRANS_CIRC, Tween.EASE_OUT)
+  tween_node.interpolate_method(self, '_update_draw', 0.0, 1.0, duration, Tween.TRANS_CIRC, Tween.EASE_OUT)
+
+func _update_histogram(value):
+  for points_data in current_data:
+    points_data.current = lerp(0, points_data.value, value)
+    points_data.current_color = histogram_foreground_color.linear_interpolate(points_data.color, value)
 
 func _update_candleticks(value):
   for points_data in current_data:
